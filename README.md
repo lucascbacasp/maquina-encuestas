@@ -109,6 +109,19 @@ entidad central. Las vistas están separadas por tarea (ver el análisis en
 | **Clientes** | contexto | Agregados por cliente y ficha con timeline (trabajos, envíos, respuestas, casos) |
 | **Resultados** | decidir | General (empresa) · por tipo de servicio · por cliente |
 
+### Roles
+
+Dos credenciales sobre el mismo Basic Auth, aplicadas **en el servidor**:
+
+| Rol | Credencial | Ve | Hace |
+|---|---|---|---|
+| **Operador** | `OPERATOR_USER`/`OPERATOR_PASS` | Solo **Operación** | Cierra trabajos (dispara encuestas), envía WhatsApp, carga contactos, reenvía, trabaja casos |
+| **Gerente** | `ADMIN_USER`/`ADMIN_PASS` | Todo: Operación + **Encuestas** (registro completo) + **Clientes** + **Resultados** globales | Todo lo anterior + análisis y export |
+
+El operador recibe `403` en `/api/crm` y `/api/selftest` — la restricción no
+es solo esconder pestañas. El rol viene en `config.role` de `/api/state`.
+
+
 ## Configuración (env, todo opcional)
 
 | Variable | Default | Para qué |

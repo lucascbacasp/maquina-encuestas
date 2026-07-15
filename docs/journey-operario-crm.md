@@ -119,8 +119,9 @@ chicos.
 
 ### Pendientes conocidos (decisión consciente, no olvido)
 
-- **Roles y permisos** (operario vs dueño): hoy no hay auth; primero auth,
-  después roles.
+- ~~Roles y permisos (operario vs dueño)~~ **Implementado**: dos
+  credenciales (operador → Operación; gerente → todo), con la restricción
+  aplicada en el server.
 - **Timeline con notas manuales por cliente** ("llamé, no atendió"): hoy las
   notas viven en el caso; si se pide, se generaliza a nota por cliente.
 - **Merge manual de clientes duplicados** (mismo cliente con dos nombres):
