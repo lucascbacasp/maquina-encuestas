@@ -1,0 +1,6 @@
+*.db
+*.db-wal
+*.db-shm
+.git
+docs
+demo.html

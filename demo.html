@@ -1,0 +1,653 @@
+<title>Máquina de Encuestas — Demo</title>
+<style>
+  /* Sistema de diseño (redesign-skill): monocromo cálido + un acento.
+     Radios: contenedores 14px, controles 9px, chips pill. */
+  :root {
+    color-scheme: light;
+    --page:      #f7f6f2;
+    --surface:   #fdfdfb;
+    --raised:    #ffffff;
+    --ink:       #1c1b18;
+    --ink-2:     #5f5c55;
+    --muted:     #8f8c83;
+    --hairline:  #e7e5de;
+    --wash:      rgba(28, 27, 24, 0.035);
+    --accent:    #2a6fc4;
+    --accent-ink: #ffffff;
+    --accent-wash: rgba(42, 111, 196, 0.09);
+    --good:      #0ca30c;
+    --warn:      #d99a00;
+    --crit:      #c73a3a;
+    --overlay:   rgba(28, 27, 24, 0.45);
+    --shadow: 0 1px 2px rgba(28, 27, 24, 0.04), 0 10px 28px -14px rgba(28, 27, 24, 0.10);
+    --ring: 0 0 0 2px var(--page), 0 0 0 4px var(--accent);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page:      #131311;
+      --surface:   #1b1b18;
+      --raised:    #21211e;
+      --ink:       #f4f3ef;
+      --ink-2:     #b8b5ac;
+      --muted:     #8f8c83;
+      --hairline:  #2b2b27;
+      --wash:      rgba(244, 243, 239, 0.045);
+      --accent:    #5b96e0;
+      --accent-ink: #10131a;
+      --accent-wash: rgba(91, 150, 224, 0.14);
+      --warn:      #e0b23e;
+      --crit:      #d96666;
+      --overlay:   rgba(0, 0, 0, 0.6);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 12px 32px -16px rgba(0, 0, 0, 0.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:      #131311;
+    --surface:   #1b1b18;
+    --raised:    #21211e;
+    --ink:       #f4f3ef;
+    --ink-2:     #b8b5ac;
+    --muted:     #8f8c83;
+    --hairline:  #2b2b27;
+    --wash:      rgba(244, 243, 239, 0.045);
+    --accent:    #5b96e0;
+    --accent-ink: #10131a;
+    --accent-wash: rgba(91, 150, 224, 0.14);
+    --warn:      #e0b23e;
+    --crit:      #d96666;
+    --overlay:   rgba(0, 0, 0, 0.6);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 12px 32px -16px rgba(0, 0, 0, 0.45);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI Variable Display', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+    background: var(--page); color: var(--ink);
+    margin: 0; line-height: 1.55; position: relative;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: .028;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  main, .demobar, footer, dialog { position: relative; z-index: 1; }
+  main { max-width: 1020px; margin: 0 auto; padding: 1.4rem 1.2rem 3.5rem; }
+  h1 { font-size: 1.6rem; font-weight: 650; letter-spacing: -0.022em; line-height: 1.15; margin: .4rem 0 .15rem; text-wrap: balance; }
+  h2 { font-size: 1.04rem; font-weight: 600; letter-spacing: -0.012em; margin: 2.4rem 0 .8rem; }
+  .muted { color: var(--muted); font-size: .85rem; }
+  code { font-size: .95em; font-variant-numeric: tabular-nums; }
+  :focus-visible { outline: none; box-shadow: var(--ring); border-radius: 6px; }
+
+  /* ---- barra de demo ---- */
+  .demobar {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--accent-wash);
+    border-bottom: 1px solid var(--hairline);
+    backdrop-filter: blur(8px);
+  }
+  .demobar-inner {
+    max-width: 1020px; margin: 0 auto; padding: .5rem 1.2rem;
+    display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
+    font-size: .85rem;
+  }
+  .demo-badge {
+    background: var(--accent); color: var(--accent-ink); font-weight: 650;
+    font-size: .72rem; letter-spacing: .06em;
+    padding: .16rem .6rem; border-radius: 999px;
+  }
+  .demobar .clock { color: var(--ink-2); font-variant-numeric: tabular-nums; font-weight: 500; }
+  .demobar .spacer { flex: 1; }
+
+  /* ---- KPI tiles ---- */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: .9rem; margin-top: 1.2rem; }
+  .tile { background: var(--surface); border-radius: 14px; padding: 1rem 1.1rem .9rem; box-shadow: var(--shadow); }
+  .tile b { display: block; font-size: 2.05rem; font-weight: 650; letter-spacing: -0.025em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+  .tile small { color: var(--ink-2); font-size: .8rem; font-weight: 500; }
+  .tile.crit b { color: var(--crit); }
+
+  .dist { margin-top: 1rem; }
+  .dist-bar { display: flex; height: 13px; border-radius: 7px; overflow: hidden; gap: 2px; }
+  .dist-bar span { display: block; border-radius: 3px; min-width: 4px; }
+  .dist-legend { display: flex; flex-wrap: wrap; gap: 1.1rem; margin-top: .45rem; font-size: .84rem; color: var(--ink-2); font-weight: 500; }
+  .chip { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: .38rem; }
+  .chip.crit { background: var(--crit); } .chip.warn { background: var(--warn); } .chip.good { background: var(--good); }
+  .chip.accent { background: var(--accent); } .chip.mutedc { background: var(--muted); }
+
+  /* ---- tarjetas / tablas ---- */
+  .card { background: var(--surface); border-radius: 14px; padding: .9rem 1.1rem; margin: .6rem 0; box-shadow: var(--shadow); }
+  .card.case-open { border-left: 4px solid var(--crit); }
+  .card.case-resolved { border-left: 4px solid var(--good); opacity: .72; }
+  .who { font-weight: 600; }
+  .row { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; margin-top: .6rem; }
+
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; background: var(--surface);
+    border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid var(--hairline); }
+  tr:last-child td { border-bottom: none; }
+  th { color: var(--muted); font-weight: 550; font-size: .78rem; letter-spacing: .015em; background: var(--wash); }
+  td.num { font-variant-numeric: tabular-nums; }
+
+  input, textarea, button {
+    font: inherit; color: var(--ink); background: var(--raised);
+    border: 1px solid var(--hairline); border-radius: 9px; padding: .42rem .65rem;
+    transition: border-color .18s ease, background-color .18s ease, transform .12s ease;
+  }
+  input::placeholder, textarea::placeholder { color: var(--muted); }
+  textarea { width: 100%; resize: vertical; min-height: 2.4rem; }
+  button { cursor: pointer; font-weight: 500; }
+  button:hover { border-color: var(--accent); }
+  button:active { transform: translateY(1px) scale(.99); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  button.primary:hover { filter: brightness(1.07); }
+  button.wa { border-color: var(--good); }
+  button.wa:hover { background: var(--good); color: #fff; border-color: var(--good); }
+  button.link { border: none; background: none; color: var(--accent); padding: .1rem .2rem; text-decoration: underline; box-shadow: none; }
+
+  .badge { display: inline-flex; align-items: center; gap: .35rem; font-size: .74rem; font-weight: 500;
+    padding: .12rem .55rem; border: 1px solid var(--hairline); border-radius: 999px; color: var(--ink-2); background: var(--raised); }
+  .badge .chip { margin-right: 0; width: 7px; height: 7px; }
+  .empty { color: var(--muted); font-size: .85rem; padding: .3rem 0; }
+
+  form.close-job { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: .55rem; }
+  form.close-job button { grid-column: 1 / -1; justify-self: start; }
+
+  details.activity summary { cursor: pointer; color: var(--ink-2); font-size: .9rem; font-weight: 500; }
+  details.activity summary:hover { color: var(--ink); }
+  .activity-item { border-bottom: 1px solid var(--hairline); padding: .45rem 0; font-size: .85rem; }
+  .activity-item:last-child { border-bottom: none; }
+
+  /* ---- modales ---- */
+  dialog {
+    border: 1px solid var(--hairline); border-radius: 18px;
+    background: var(--surface); color: var(--ink); box-shadow: var(--shadow);
+    padding: 1.4rem; max-width: 400px; width: calc(100vw - 2rem);
+  }
+  dialog::backdrop { background: var(--overlay); }
+  .phone-note { text-align: center; margin: 0 0 .8rem; }
+  .survey-q { font-size: 1.18rem; font-weight: 650; letter-spacing: -0.015em; margin: .2rem 0; text-wrap: balance; }
+  .rating-btns { display: grid; gap: .8rem; margin-top: 1.2rem; }
+  .rating-btns button { font-size: 1.1rem; font-weight: 550; padding: .9rem; border-radius: 14px; background: var(--raised); box-shadow: var(--shadow); }
+  .review-cta { display: block; margin-top: 1.2rem; padding: .9rem; border: 1px solid var(--warn);
+    border-radius: 14px; text-align: center; color: var(--ink); text-decoration: none; box-shadow: var(--shadow); }
+  .wa-bubble { background: var(--accent-wash); border-radius: 12px; padding: .7rem .9rem;
+    font-size: .9rem; white-space: pre-wrap; margin: .8rem 0; word-break: break-word; }
+  .dialog-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1rem; flex-wrap: wrap; }
+
+  footer { max-width: 1020px; margin: 0 auto; padding: 1.1rem 1.2rem; border-top: 1px solid var(--hairline); }
+  a { color: var(--accent); }
+  @media (prefers-reduced-motion: no-preference) {
+    dialog[open] { animation: pop .18s ease-out; }
+    @keyframes pop { from { transform: scale(.96); opacity: 0; } }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: .01ms !important; animation: none !important; }
+  }
+</style>
+
+<div class="demobar">
+  <div class="demobar-inner">
+    <span class="demo-badge">DEMO</span>
+    <span class="clock" id="clock"></span>
+    <span class="spacer"></span>
+    <span class="muted">Avanzar el tiempo:</span>
+    <button data-advance="60">+1 hora</button>
+    <button data-advance="1440">+1 día</button>
+    <button data-advance="10080">+1 semana</button>
+    <button data-reset>Reiniciar demo</button>
+  </div>
+</div>
+
+<main>
+  <h1>Máquina de Encuestas</h1>
+  <p id="config-line" class="muted"></p>
+  <div id="app"></div>
+</main>
+
+<footer class="muted">
+  Demo interactiva sin backend: los datos viven en esta pestaña y se reinician al recargar.
+  En el producto real, el cierre lo dispara el sistema del operario vía API, el email sale solo
+  y WhatsApp funciona con un tap (link <code>wa.me</code>, sin API de Meta).
+  Usá <b>“Avanzar el tiempo”</b> para ver el envío diferido (45 min), el reenvío automático (48 hs)
+  y el seguimiento semanal de casos.
+</footer>
+
+<dialog id="modal"></dialog>
+
+<script>
+'use strict';
+// ==================================================================
+// Lógica del backend portada al navegador (misma máquina de estados
+// que server.js/scheduler.js): demo fiel, sin servidor.
+// ==================================================================
+
+const CFG = {
+  delayMin: 45,             // envío diferido
+  reminderH: 48,            // reenvío automático si no respondió (máx. 1)
+  followupD: 7,             // seguimiento de casos abiertos
+  review: 'https://g.page/r/tu-negocio/review',
+  base: 'https://encuestas.tu-negocio.com',
+};
+const MIN = 60_000, H = 3_600_000, D = 86_400_000;
+
+let S, simNow;
+
+const uid = (() => { let n = 0; return () => ++n; })();
+const token = () => Array.from({ length: 8 }, () => Math.random().toString(16).slice(2, 6)).join('');
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const fmt = (t) => t == null ? '—'
+  : new Date(t).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+// ------------------------------------------------ entidades y helpers
+
+function upsertClient({ name, email, phone }) {
+  email = (email || '').trim() || null;
+  phone = ((phone || '').replace(/[^\d]/g, '')) || null;
+  if (phone && phone.length < 8) phone = null;
+  const found = S.clients.find((c) => c.name.toLowerCase() === name.trim().toLowerCase());
+  if (found) {
+    found.email = email || found.email;
+    found.phone = phone || found.phone;
+    return found;
+  }
+  const c = { id: uid(), name: name.trim(), email, phone };
+  S.clients.push(c);
+  return c;
+}
+const channelFor = (c) => c.email ? 'email' : (c.phone ? 'whatsapp' : null);
+const client = (id) => S.clients.find((c) => c.id === id);
+const job = (id) => S.jobs.find((j) => j.id === id);
+const survey = (id) => S.surveys.find((s) => s.id === id);
+const canAuto = (ch) => ch === 'email'; // sin gateway de WhatsApp en la demo
+
+function outbox(kind, channel, recipient, subject, body, surveyId) {
+  S.outbox.unshift({ id: uid(), kind, channel, recipient, subject, body, survey_id: surveyId, at: simNow });
+}
+
+function surveyMsg(s, kind) {
+  const c = client(s.client_id), j = job(s.job_id);
+  const link = `${CFG.base}/s/${s.token}`;
+  return {
+    subject: kind === 'reminder' ? '¿Nos das tu opinión? Es una sola pregunta'
+                                 : '¿Cómo salió el trabajo? Respondé con un toque',
+    body: `Hola ${c.name}!\n\n` +
+      (kind === 'reminder'
+        ? `Hace unos días terminamos el trabajo${j.type ? ` de ${j.type}` : ''} (${j.ref}) y nos encantaría saber cómo salió. `
+        : `Terminamos el trabajo${j.type ? ` de ${j.type}` : ''} (${j.ref}). ¿Cómo salió? `) +
+      `Es una sola pregunta, sin registrarse:\n\n${link}\n\nGracias!`,
+  };
+}
+
+function sendSurvey(s, kind) {
+  const c = client(s.client_id);
+  const m = surveyMsg(s, kind);
+  outbox(kind, s.channel, s.channel === 'email' ? c.email : `+${c.phone}`, m.subject, m.body, s.id);
+  if (kind === 'initial') { s.status = 'sent'; s.sent_at = simNow; }
+  else s.resend_count++;
+}
+
+// ------------------------------------------------ flujo core
+
+function closeJob({ ref, type, client_name, client_email, client_phone }) {
+  if (S.jobs.some((j) => j.ref === ref)) return { error: 'Ese número de trabajo ya se cerró.' };
+  const c = upsertClient({ name: client_name, email: client_email, phone: client_phone });
+  const j = { id: uid(), ref, type: (type || '').trim() || null, client_id: c.id, closed_at: simNow };
+  S.jobs.push(j);
+  const ch = channelFor(c);
+  S.surveys.push({
+    id: uid(), job_id: j.id, client_id: c.id, token: token(), channel: ch,
+    status: ch ? 'scheduled' : 'pending_contact',
+    scheduled_at: ch ? simNow + CFG.delayMin * MIN : null,
+    rating: null, resend_count: 0, sent_at: null, responded_at: null,
+  });
+  tick();
+  return {};
+}
+
+function respond(s, rating) {
+  if (s.status === 'responded') return { already: true };
+  s.status = 'responded'; s.rating = rating; s.responded_at = simNow;
+  if (rating === 'insatisfecho') {
+    S.cases.push({ id: uid(), survey_id: s.id, client_id: s.client_id, status: 'abierto',
+      notes: '', opened_at: simNow, resolved_at: null, last_followup_at: null });
+    const c = client(s.client_id), j = job(s.job_id);
+    outbox('alert', 'interno', 'dueño',
+      `⚠ Cliente insatisfecho: ${c.name}`,
+      `${c.name} respondió INSATISFECHO por el trabajo ${j.ref}${j.type ? ` (${j.type})` : ''}.\n` +
+      `Contacto: ${c.email || (c.phone ? '+' + c.phone : 'sin datos')}\n\nLlamalo hoy para recuperarlo.`, s.id);
+  }
+  return {};
+}
+
+function resolveCase(k) {
+  k.status = 'resuelto'; k.resolved_at = simNow;
+  const c = client(k.client_id), j = job(survey(k.survey_id).job_id);
+  const ch = channelFor(c) || 'email';
+  outbox('resolution', ch, ch === 'email' ? c.email : `+${c.phone}`,
+    'Queríamos contarte que lo resolvimos',
+    `Hola ${c.name}!\n\nNos tomamos en serio tu respuesta sobre el trabajo${j.type ? ` de ${j.type}` : ''} ` +
+    `(${j.ref}) y trabajamos para resolverlo. Gracias por avisarnos: nos ayudó a mejorar.`, k.survey_id);
+}
+
+// El scheduler: idéntico a scheduler.js, con reloj simulado.
+function tick() {
+  for (const s of S.surveys.filter((x) => x.status === 'scheduled' && x.scheduled_at <= simNow)) {
+    if (canAuto(s.channel)) sendSurvey(s, 'initial');
+    else s.status = 'ready';
+  }
+  for (const s of S.surveys.filter((x) =>
+    x.status === 'sent' && x.resend_count === 0 && canAuto(x.channel) &&
+    x.sent_at <= simNow - CFG.reminderH * H)) {
+    sendSurvey(s, 'reminder');
+  }
+  for (const k of S.cases.filter((x) =>
+    x.status !== 'resuelto' && (x.last_followup_at ?? x.opened_at) <= simNow - CFG.followupD * D)) {
+    const c = client(k.client_id), j = job(survey(k.survey_id).job_id);
+    outbox('followup', 'interno', 'dueño',
+      `⏰ Caso sin resolver: ${c.name} (${k.status})`,
+      `El caso de ${c.name} (trabajo ${j.ref}) sigue ${k.status.replace('_', ' ')}.\n` +
+      `Contacto: ${c.email || (c.phone ? '+' + c.phone : 'sin datos')}${k.notes ? `\nNotas: ${k.notes}` : ''}`, k.survey_id);
+    k.last_followup_at = simNow;
+  }
+}
+
+// ------------------------------------------------ métricas
+
+function metrics() {
+  const T = S.surveys, n = T.length;
+  const enviadas = T.filter((s) => ['sent', 'responded'].includes(s.status)).length;
+  const resp = T.filter((s) => s.status === 'responded').length;
+  const by = (r) => T.filter((s) => s.rating === r).length;
+  const pct = (a, b) => b ? Math.round((a / b) * 100) : 0;
+  return {
+    total: n, enviadas, respondidas: resp,
+    casos: S.cases.filter((k) => k.status !== 'resuelto').length,
+    d: { insatisfecho: by('insatisfecho'), bueno: by('bueno'), excelente: by('excelente') },
+    pctEnv: pct(enviadas, n), pctResp: pct(resp, enviadas),
+    pctSat: pct(by('bueno') + by('excelente'), resp),
+  };
+}
+
+// ==================================================================
+// Render
+// ==================================================================
+
+const app = document.getElementById('app');
+const modal = document.getElementById('modal');
+
+const chBadge = (ch) => ch ? `<span class="badge"><i class="chip ${ch === 'email' ? 'accent' : 'good'}"></i>${ch}</span>` : '';
+const rowMeta = (s) => {
+  const c = client(s.client_id), j = job(s.job_id);
+  return { c, j, contact: c.email || (c.phone ? `+${c.phone}` : 'sin datos') };
+};
+const tryLink = (s) => `<button class="link" data-open-survey="${s.id}">ver como cliente →</button>`;
+
+function render() {
+  tick();
+  const m = metrics();
+  const total = m.d.insatisfecho + m.d.bueno + m.d.excelente;
+  const flex = (x) => total ? Math.max((x / total) * 100, x ? 3 : 0) : 0;
+
+  document.getElementById('clock').textContent = `Reloj simulado: ${fmt(simNow)}`;
+  document.getElementById('config-line').textContent =
+    `Envío diferido: ${CFG.delayMin} min · WhatsApp: tap-to-send (wa.me, sin API de Meta) · Reenvío automático: ${CFG.reminderH} hs (máx. 1) · Reseña Google: activa`;
+
+  const cases = [...S.cases].sort((a, b) => (a.status === 'resuelto') - (b.status === 'resuelto'));
+  const pend = S.surveys.filter((s) => s.status === 'pending_contact');
+  const ready = S.surveys.filter((s) => s.status === 'ready');
+  const sched = S.surveys.filter((s) => s.status === 'scheduled');
+  const unans = S.surveys.filter((s) => s.status === 'sent');
+  const risk = S.clients.map((c) => ({
+    c, n: S.surveys.filter((s) => s.client_id === c.id && s.rating === 'insatisfecho').length,
+  })).filter((x) => x.n >= 2);
+
+  app.innerHTML = `
+  <div class="tiles">
+    <div class="tile"><b>${m.pctEnv}%</b><small>enviadas · ${m.enviadas} de ${m.total}</small></div>
+    <div class="tile"><b>${m.pctResp}%</b><small>respondidas · ${m.respondidas} de ${m.enviadas}</small></div>
+    <div class="tile"><b>${m.pctSat}%</b><small>satisfacción (bueno + excelente)</small></div>
+    <div class="tile ${m.casos ? 'crit' : ''}"><b>${m.casos}</b><small>casos abiertos</small></div>
+  </div>
+  ${total ? `<div class="dist">
+    <div class="dist-bar" role="img" aria-label="${m.d.insatisfecho} insatisfecho, ${m.d.bueno} bueno, ${m.d.excelente} excelente">
+      ${m.d.insatisfecho ? `<span style="flex:${flex(m.d.insatisfecho)};background:var(--crit)"></span>` : ''}
+      ${m.d.bueno ? `<span style="flex:${flex(m.d.bueno)};background:var(--warn)"></span>` : ''}
+      ${m.d.excelente ? `<span style="flex:${flex(m.d.excelente)};background:var(--good)"></span>` : ''}
+    </div>
+    <div class="dist-legend">
+      <span><i class="chip crit"></i>Insatisfecho · ${m.d.insatisfecho}</span>
+      <span><i class="chip warn"></i>Bueno · ${m.d.bueno}</span>
+      <span><i class="chip good"></i>Excelente · ${m.d.excelente}</span>
+    </div></div>` : ''}
+
+  ${cases.length ? `<h2>Casos de insatisfechos${m.casos ? ` (${m.casos} abiertos — llamar hoy)` : ''}</h2>` +
+    cases.map((k) => {
+      const { c, j } = { c: client(k.client_id), j: job(survey(k.survey_id).job_id) };
+      return `<div class="card ${k.status === 'resuelto' ? 'case-resolved' : 'case-open'}">
+        <span class="who">${esc(c.name)}</span> <span class="badge">${k.status.replace('_', ' ')}</span>
+        <span class="muted">trabajo ${esc(j.ref)}${j.type ? ` · ${esc(j.type)}` : ''} · ${esc(c.email || '+' + c.phone)}</span>
+        ${k.status === 'resuelto' ? `<div class="muted">resuelto ${fmt(k.resolved_at)}</div>` : `
+        <div class="row"><textarea data-notes="${k.id}" placeholder="Notas del caso…">${esc(k.notes)}</textarea></div>
+        <div class="row">
+          ${k.status === 'abierto' ? `<button data-case="${k.id}" data-status="en_tratamiento">Pasar a en tratamiento</button>` : ''}
+          <button class="primary" data-case="${k.id}" data-status="resuelto">Marcar resuelto</button>
+          <button data-case="${k.id}" data-status="${k.status}">Guardar notas</button>
+        </div>`}
+      </div>`;
+    }).join('') : ''}
+
+  ${ready.length ? `<h2>Para enviar por WhatsApp (un tap)</h2>
+    <p class="muted">El botón abre WhatsApp con el mensaje y el link ya armados; solo tocás enviar.</p>` +
+    ready.map((s) => {
+      const { c, j } = rowMeta(s);
+      return `<div class="card"><span class="who">${esc(c.name)}</span> ${chBadge(s.channel)}
+        <span class="muted">trabajo ${esc(j.ref)} · +${esc(c.phone)}</span>
+        <div class="row"><button class="wa" data-wa="${s.id}">Enviar por WhatsApp →</button></div></div>`;
+    }).join('') : ''}
+
+  ${pend.length ? `<h2>Sin contacto — cargar para enviar</h2>
+    <p class="muted">El dato queda guardado: el próximo trabajo de este cliente sale automático.</p>` +
+    pend.map((s) => {
+      const { c, j } = rowMeta(s);
+      return `<div class="card"><span class="who">${esc(c.name)}</span>
+        <span class="muted">trabajo ${esc(j.ref)}</span>
+        <form class="row" data-contact="${s.id}">
+          <input name="email" type="email" placeholder="email@cliente.com">
+          <input name="phone" type="tel" placeholder="WhatsApp ej: 5491122334455">
+          <button class="primary">Guardar y enviar</button>
+        </form></div>`;
+    }).join('') : ''}
+
+  ${unans.length ? `<h2>Enviadas sin respuesta</h2>
+    <p class="muted">Reenvío automático a las ${CFG.reminderH} hs por email (máximo 1 y corta). Probalo con “+1 semana”.</p>
+    <table><tr><th>Cliente</th><th>Trabajo</th><th>Canal</th><th>Enviada</th><th></th><th></th></tr>` +
+    unans.map((s) => {
+      const { c, j } = rowMeta(s);
+      return `<tr><td>${esc(c.name)}</td><td>${esc(j.ref)}</td><td>${chBadge(s.channel)}</td>
+        <td class="num">${fmt(s.sent_at)}</td>
+        <td>${s.resend_count >= 1 ? '<span class="muted">reenviada (límite: 1)</span>'
+          : s.channel === 'email' ? `<button data-resend="${s.id}">Reenviar</button>`
+          : `<button class="wa" data-wa="${s.id}">Reenviar por WhatsApp →</button>`}</td>
+        <td>${tryLink(s)}</td></tr>`;
+    }).join('') + '</table>' : ''}
+
+  ${sched.length ? `<h2>Programadas (envío diferido)</h2>
+    <p class="muted">Salen solas a los ${CFG.delayMin} min del cierre — probalo con “+1 hora”.</p>
+    <table><tr><th>Cliente</th><th>Trabajo</th><th>Canal</th><th>Sale</th></tr>` +
+    sched.map((s) => {
+      const { c, j } = rowMeta(s);
+      return `<tr><td>${esc(c.name)}</td><td>${esc(j.ref)}</td><td>${chBadge(s.channel)}</td>
+        <td class="num">${fmt(s.scheduled_at)}</td></tr>`;
+    }).join('') + '</table>' : ''}
+
+  ${risk.length ? `<h2>Clientes en riesgo (insatisfacción recurrente)</h2>
+    <table><tr><th>Cliente</th><th>Contacto</th><th>Insatisfechos</th></tr>` +
+    risk.map(({ c, n }) => `<tr><td>${esc(c.name)}</td>
+      <td>${esc(c.email || (c.phone ? '+' + c.phone : '—'))}</td><td class="num">${n}</td></tr>`).join('') + '</table>' : ''}
+
+  ${S.outbox.length ? `<details class="activity"><summary>Actividad — todo lo que salió del sistema (${S.outbox.length})</summary>` +
+    S.outbox.map((a) => {
+      const K = { initial: 'encuesta', reminder: 'recordatorio', alert: 'alerta', followup: 'seguimiento', resolution: 'resolución' };
+      return `<div class="activity-item"><b>${K[a.kind]}</b>
+        <span class="muted">${esc(a.channel)} → ${esc(a.recipient)} · ${fmt(a.at)}</span><br>${esc(a.subject)}</div>`;
+    }).join('') + '</details>' : ''}
+
+  <h2>Cerrar trabajo</h2>
+  <p class="muted">En producción esto lo dispara tu sistema con <code>POST /api/jobs/close</code>.
+  Si el cliente ya existe (probá “Ana García”), no hace falta cargar el contacto de nuevo.</p>
+  <form class="close-job card" id="close-job">
+    <input name="ref" placeholder="Nro de trabajo" required>
+    <input name="type" placeholder="Tipo (ej: plomería)">
+    <input name="client_name" placeholder="Cliente" required>
+    <input name="client_email" type="email" placeholder="Email (opcional)">
+    <input name="client_phone" type="tel" placeholder="WhatsApp (opcional)">
+    <button class="primary">Cerrar trabajo → disparar encuesta</button>
+  </form>`;
+}
+
+// ------------------------------------------------ modales
+
+function openSurveyModal(s) {
+  const j = job(s.job_id);
+  if (s.status === 'responded') return openThanksModal(s, true);
+  modal.innerHTML = `
+    <p class="phone-note muted">📱 Lo que ve el cliente al abrir el link — sin login</p>
+    <p class="survey-q">¿Cómo salió el trabajo${j.type ? ` de ${esc(j.type)}` : ''}?</p>
+    <p class="muted">Un solo toque y listo. Sin registrarse.</p>
+    <div class="rating-btns">
+      <button data-rate="insatisfecho" data-sid="${s.id}">😞 Insatisfecho</button>
+      <button data-rate="bueno" data-sid="${s.id}">🙂 Bueno</button>
+      <button data-rate="excelente" data-sid="${s.id}">🤩 Excelente</button>
+    </div>
+    <div class="dialog-actions"><button data-close>Cerrar</button></div>`;
+  modal.showModal();
+}
+
+function openThanksModal(s, already) {
+  modal.innerHTML = `
+    <p class="phone-note muted">📱 Lo que ve el cliente</p>
+    <p class="survey-q">¡Gracias por tu respuesta! 🙌</p>
+    <p class="muted">${already ? 'Ya habíamos registrado tu respuesta anterior.' : 'Tu opinión nos ayuda a mejorar.'}</p>
+    ${s.rating === 'excelente' ? `<a class="review-cta" href="${CFG.review}" target="_blank" rel="noopener">
+      ⭐ ¿Nos dejás una reseña en Google?<br><span class="muted">Nos ayuda muchísimo y toma 1 minuto</span></a>` : ''}
+    <div class="dialog-actions"><button class="primary" data-close>Volver al tablero</button></div>`;
+  if (!modal.open) modal.showModal();
+}
+
+function openWaModal(s) {
+  const c = client(s.client_id);
+  const kind = s.status === 'ready' ? 'initial' : 'reminder';
+  const m = surveyMsg(s, kind);
+  const wa = `https://wa.me/${c.phone}?text=${encodeURIComponent(m.body)}`;
+  modal.innerHTML = `
+    <p class="survey-q">Enviar por WhatsApp a ${esc(c.name)}</p>
+    <p class="muted">El sistema armó el mensaje; en el celular esto abre WhatsApp listo para tocar “enviar”.
+    Sin API de Meta, sin aprobaciones.</p>
+    <div class="wa-bubble">${esc(m.body)}</div>
+    <div class="dialog-actions">
+      <button data-close>Cancelar</button>
+      <a href="${wa}" target="_blank" rel="noopener"><button class="wa" data-wa-sent="${s.id}" data-kind="${kind}">Abrir wa.me real →</button></a>
+      <button class="primary" data-wa-sent="${s.id}" data-kind="${kind}">Simular envío</button>
+    </div>`;
+  modal.showModal();
+}
+
+// ------------------------------------------------ eventos
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+
+  if (b.dataset.advance) { simNow += Number(b.dataset.advance) * MIN; render(); }
+  if (b.hasAttribute('data-reset')) { seed(); render(); }
+  if (b.hasAttribute('data-close')) modal.close();
+
+  if (b.dataset.openSurvey) openSurveyModal(survey(Number(b.dataset.openSurvey)));
+  if (b.dataset.wa) openWaModal(survey(Number(b.dataset.wa)));
+
+  if (b.dataset.waSent) {
+    const s = survey(Number(b.dataset.waSent));
+    if (b.dataset.kind === 'initial' && s.status === 'ready') sendSurvey(s, 'initial');
+    else if (b.dataset.kind === 'reminder' && s.status === 'sent' && s.resend_count === 0) sendSurvey(s, 'reminder');
+    modal.close(); render();
+  }
+  if (b.dataset.rate) {
+    const s = survey(Number(b.dataset.sid));
+    const r = respond(s, b.dataset.rate);
+    openThanksModal(s, r.already); render();
+  }
+  if (b.dataset.resend) {
+    const s = survey(Number(b.dataset.resend));
+    if (s.resend_count === 0) sendSurvey(s, 'reminder');
+    render();
+  }
+  if (b.dataset.case) {
+    const k = S.cases.find((x) => x.id === Number(b.dataset.case));
+    k.notes = document.querySelector(`[data-notes="${k.id}"]`)?.value ?? k.notes;
+    if (b.dataset.status === 'resuelto' && k.status !== 'resuelto') resolveCase(k);
+    else k.status = b.dataset.status;
+    render();
+  }
+});
+
+document.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const data = Object.fromEntries(new FormData(f));
+  if (f.id === 'close-job') {
+    const r = closeJob(data);
+    if (r.error) alert(r.error); else f.reset();
+  } else if (f.dataset.contact) {
+    const s = survey(Number(f.dataset.contact));
+    const email = (data.email || '').trim(), phone = (data.phone || '').replace(/[^\d]/g, '');
+    if (!email && phone.length < 8) return alert('Cargá un email o un WhatsApp válido.');
+    const c = client(s.client_id);
+    c.email = email || c.email; c.phone = (phone.length >= 8 ? phone : null) || c.phone;
+    s.channel = channelFor(c);
+    s.status = 'scheduled'; s.scheduled_at = simNow; // ya esperó bastante: sale ahora
+  }
+  render();
+});
+
+// ------------------------------------------------ datos de demo
+
+function seed() {
+  S = { clients: [], jobs: [], surveys: [], cases: [], outbox: [] };
+  simNow = Date.now();
+  const back = (ms) => { simNow -= ms; };
+  const fwd = (ms) => { simNow += ms; };
+
+  back(3 * D);
+  closeJob({ ref: 'T-101', type: 'plomería', client_name: 'Ana García', client_email: 'ana@mail.com' });
+  fwd(H); tick();
+  respond(S.surveys.at(-1), 'excelente');
+
+  closeJob({ ref: 'T-104', type: 'pintura', client_name: 'Dario Sosa', client_email: 'dario@mail.com' });
+  fwd(H); tick();
+  respond(S.surveys.at(-1), 'insatisfecho');
+
+  fwd(D);
+  closeJob({ ref: 'T-106', type: 'pintura', client_name: 'Dario Sosa' });
+  fwd(H); tick();
+  respond(S.surveys.at(-1), 'insatisfecho');
+
+  closeJob({ ref: 'T-107', type: 'limpieza', client_name: 'Mora Díaz', client_email: 'mora@mail.com' });
+  fwd(H); tick();
+  respond(S.surveys.at(-1), 'bueno');
+
+  fwd(2 * D - 5 * H);
+  closeJob({ ref: 'T-102', type: 'electricidad', client_name: 'Beto Ruiz', client_phone: '5491133445566' });
+  closeJob({ ref: 'T-103', type: 'limpieza', client_name: 'Carla Paz' });
+  fwd(H); tick();
+
+  fwd(2 * H);
+  closeJob({ ref: 'T-105', type: 'plomería', client_name: 'Elsa Coto', client_email: 'elsa@mail.com' });
+  fwd(H); tick();
+}
+
+seed();
+render();
+</script>

@@ -1,0 +1,15 @@
+{
+  "name": "maquina-de-encuestas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MVP de encuestas post-trabajo: cierre → envío automático → 1 pregunta → dashboard con alerta de insatisfechos",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test.js",
+    "seed": "node seed.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

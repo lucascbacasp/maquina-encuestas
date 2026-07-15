@@ -1,0 +1,23 @@
+# Blueprint de Render: "New +" -> "Blueprint" -> elegir este repo.
+# Solo queda setear ADMIN_PASS (y opcionalmente GOOGLE_REVIEW_URL) en el dashboard.
+services:
+  - type: web
+    name: maquina-encuestas
+    runtime: node
+    plan: free
+    buildCommand: "true"
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: DEMO_SEED
+        value: "1"          # base efímera en plan free: repuebla la demo al despertar
+      - key: SEND_DELAY_MINUTES
+        value: "45"
+      - key: ADMIN_USER
+        value: admin
+      - key: ADMIN_PASS
+        sync: false          # se carga a mano en el dashboard de Render
+      - key: GOOGLE_REVIEW_URL
+        sync: false

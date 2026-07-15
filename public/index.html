@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Encuestas de satisfacción post-trabajo: envío automático, respuesta de un tap y gestión de clientes.">
+  <title>Máquina de Encuestas</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a6fc4'/%3E%3Cpath d='M9 17l4.5 4.5L23 12' stroke='%23fff' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1>Máquina de Encuestas</h1>
+    <p id="config-line" class="muted"></p>
+    <nav class="tabs" aria-label="Vistas">
+      <a href="#operacion">Operación</a>
+      <a href="#encuestas">Encuestas</a>
+      <a href="#clientes">Clientes</a>
+      <a href="#resultados">Resultados</a>
+    </nav>
+  </header>
+
+  <main id="app" aria-live="polite">
+    <div class="skeleton" aria-hidden="true">
+      <div class="sk-row">
+        <div class="sk" style="height:88px"></div>
+        <div class="sk" style="height:88px"></div>
+        <div class="sk" style="height:88px"></div>
+        <div class="sk" style="height:88px"></div>
+      </div>
+      <div class="sk" style="height:13px;max-width:70%"></div>
+      <div class="sk" style="height:120px"></div>
+      <div class="sk" style="height:120px"></div>
+    </div>
+  </main>
+
+  <footer class="muted">
+    El sistema envía por email automáticamente y por WhatsApp con un tap
+    (link <code>wa.me</code>, sin API de Meta). Todo lo que sale queda
+    registrado en la actividad.
+  </footer>
+
+  <div id="toast" role="status"></div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

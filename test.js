@@ -1,0 +1,294 @@
+// Smoke test end-to-end contra el server real.
+//   node --test test.js
+//
+// Server A (:3777): envío inmediato — flujos de negocio.
+// Server B (:3778): tiempos acelerados — scheduler (diferido, recordatorio,
+// seguimiento de casos).
+
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { rmSync } from 'node:fs';
+
+const A = 'http://localhost:3777';
+const B = 'http://localhost:3778';
+const C = 'http://localhost:3779';
+const DBS = ['test-a.db', 'test-b.db', 'test-c.db'];
+const REVIEW_URL = 'https://g.page/r/test-review';
+const servers = [];
+
+function startServer(port, dbPath, env) {
+  const proc = spawn(process.execPath, ['server.js'], {
+    env: {
+      ...process.env, PORT: port, DB_PATH: dbPath,
+      SEND_WEBHOOK_URL: '', WHATSAPP_WEBHOOK_URL: '', ALERT_WEBHOOK_URL: '',
+      ...env,
+    },
+    stdio: 'ignore',
+  });
+  servers.push(proc);
+  return proc;
+}
+
+async function waitUp(base) {
+  for (let i = 0; i < 50; i++) {
+    try { await fetch(base + '/api/metrics'); return; }
+    catch { await new Promise((r) => setTimeout(r, 100)); }
+  }
+  throw new Error(`no levantó ${base}`);
+}
+
+async function poll(fn, timeoutMs = 8000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    const v = await fn();
+    if (v) return v;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error('poll timeout');
+}
+
+const state = (base) => fetch(base + '/api/state').then((r) => r.json());
+const closeJob = (base, body) =>
+  fetch(base + '/api/jobs/close', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+const post = (base, path, body) =>
+  fetch(base + path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+const respond = (surveyUrl, rating) =>
+  fetch(surveyUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: `rating=${rating}`,
+  });
+
+before(async () => {
+  for (const f of DBS.flatMap((d) => [d, `${d}-wal`, `${d}-shm`])) rmSync(f, { force: true });
+  startServer(3777, 'test-a.db', {
+    SEND_DELAY_MINUTES: '0', AUTO_REMINDER_HOURS: '0', TICK_MS: '100000',
+    GOOGLE_REVIEW_URL: REVIEW_URL,
+  });
+  startServer(3778, 'test-b.db', {
+    SEND_DELAY_MINUTES: '0.03',        // ~2s de envío diferido
+    AUTO_REMINDER_HOURS: '0.0008',     // recordatorio ~3s después del envío
+    CASE_FOLLOWUP_DAYS: '0.00003',     // seguimiento ~2.6s después de abrir caso
+    TICK_MS: '300',
+  });
+  startServer(3779, 'test-c.db', {
+    SEND_DELAY_MINUTES: '0', AUTO_REMINDER_HOURS: '0', TICK_MS: '100000',
+    ADMIN_PASS: 'secreta123', DEMO_SEED: '1',
+  });
+  await Promise.all([waitUp(A), waitUp(B), waitUp(C)]);
+});
+
+after(() => {
+  for (const p of servers) p.kill();
+  for (const f of DBS.flatMap((d) => [d, `${d}-wal`, `${d}-shm`])) rmSync(f, { force: true });
+});
+
+// --------------------------------------------------------- flujos (server A)
+
+test('cierre con email envía automático de inmediato (delay 0)', async () => {
+  const res = await closeJob(A, { ref: 'A-1', type: 'plomería', client_name: 'Ana', client_email: 'ana@x.com' });
+  assert.equal(res.status, 201);
+  const body = await res.json();
+  assert.equal(body.status, 'sent');
+  assert.equal(body.channel, 'email');
+  assert.match(body.survey_url, /\/s\/[a-f0-9]{32}$/);
+});
+
+test('cierre duplicado devuelve 409', async () => {
+  assert.equal((await closeJob(A, { ref: 'A-1', client_name: 'Ana' })).status, 409);
+});
+
+test('whatsapp sin gateway: queda ready y /wa marca + redirige a wa.me', async () => {
+  const res = await closeJob(A, { ref: 'A-2', client_name: 'Beto', client_phone: '+54 9 11 2233-4455' });
+  const body = await res.json();
+  assert.equal(body.channel, 'whatsapp');
+  assert.equal(body.status, 'ready');
+
+  const s = await state(A);
+  const item = s.ready.find((r) => r.job_ref === 'A-2');
+  assert.equal(item.client_phone, '5491122334455');
+
+  // Tap inicial: 302 a wa.me con el mensaje y el link de la encuesta.
+  const tap = await fetch(`${A}/wa/${item.id}`, { redirect: 'manual' });
+  assert.equal(tap.status, 302);
+  const loc = tap.headers.get('location');
+  assert.match(loc, /^https:\/\/wa\.me\/5491122334455\?text=/);
+  assert.match(decodeURIComponent(loc), /\/s\/[a-f0-9]{32}/);
+
+  // Quedó enviada; segundo tap = recordatorio; tercero = límite.
+  const tap2 = await fetch(`${A}/wa/${item.id}`, { redirect: 'manual' });
+  assert.equal(tap2.status, 302);
+  const tap3 = await fetch(`${A}/wa/${item.id}`, { redirect: 'manual' });
+  assert.equal(tap3.status, 409);
+});
+
+test('respuesta excelente muestra CTA de reseña de Google', async () => {
+  const res = await closeJob(A, { ref: 'A-3', client_name: 'Caro', client_email: 'caro@x.com' });
+  const { survey_url } = await res.json();
+  const html = await (await respond(survey_url, 'excelente')).text();
+  assert.match(html, /Gracias/);
+  assert.ok(html.includes(REVIEW_URL), 'falta el link de reseña');
+});
+
+test('insatisfecho abre caso + alerta; el caso se trata y resuelve', async () => {
+  const res = await closeJob(A, { ref: 'A-4', client_name: 'Dario', client_email: 'dario@x.com' });
+  const { survey_url } = await res.json();
+  await respond(survey_url, 'insatisfecho');
+
+  let s = await state(A);
+  const kase = s.cases.find((k) => k.job_ref === 'A-4');
+  assert.equal(kase.status, 'abierto');
+  assert.ok(s.activity.some((a) => a.kind === 'alert' && a.subject.includes('Dario')));
+  assert.equal(s.metrics.casos_abiertos >= 1, true);
+
+  // Idempotencia de la respuesta: la primera gana.
+  const again = await respond(survey_url, 'excelente');
+  assert.match(await again.text(), /Ya habíamos registrado/);
+
+  await post(A, `/api/cases/${kase.id}`, { status: 'en_tratamiento', notes: 'lo llamé' });
+  const r2 = await post(A, `/api/cases/${kase.id}`, { status: 'resuelto' });
+  assert.equal((await r2.json()).ok, true);
+
+  s = await state(A);
+  const resolved = s.cases.find((k) => k.id === kase.id);
+  assert.equal(resolved.status, 'resuelto');
+  assert.ok(resolved.resolved_at);
+  assert.equal(resolved.notes, 'lo llamé');
+  // Agradecimiento post-resolución al cliente.
+  assert.ok(s.activity.some((a) => a.kind === 'resolution' && a.recipient === 'dario@x.com'));
+});
+
+test('sin contacto: rescate lo envía y queda en memoria para el próximo', async () => {
+  await closeJob(A, { ref: 'A-5', client_name: 'Elsa' });
+  let s = await state(A);
+  const item = s.pending_contact.find((r) => r.job_ref === 'A-5');
+  assert.ok(item);
+
+  const r = await post(A, `/api/surveys/${item.id}/contact`, { email: 'elsa@x.com' });
+  assert.equal((await r.json()).status, 'sent');
+
+  // Memoria de contactos: el próximo trabajo de Elsa sale solo.
+  const next = await (await closeJob(A, { ref: 'A-6', client_name: 'Elsa' })).json();
+  assert.equal(next.status, 'sent');
+});
+
+test('reenvío manual por email: máximo 1', async () => {
+  await closeJob(A, { ref: 'A-7', client_name: 'Fede', client_email: 'fede@x.com' });
+  const s = await state(A);
+  const item = s.unanswered.find((r) => r.job_ref === 'A-7');
+  assert.equal(item.can_auto, true);
+  assert.equal((await post(A, `/api/surveys/${item.id}/resend`)).status, 200);
+  assert.equal((await post(A, `/api/surveys/${item.id}/resend`)).status, 409);
+});
+
+test('clientes en riesgo: aparece con 2 insatisfechos', async () => {
+  for (const ref of ['A-8', 'A-9']) {
+    const { survey_url } = await (await closeJob(A, { ref, client_name: 'Gina', client_email: 'gina@x.com' })).json();
+    await respond(survey_url, 'insatisfecho');
+  }
+  const s = await state(A);
+  const risk = s.at_risk.find((c) => c.name === 'Gina');
+  assert.equal(risk.insatisfechos, 2);
+});
+
+test('CRM: registro con IDs legibles y agregados por cliente y tipo', async () => {
+  const crm = await (await fetch(`${A}/api/crm`)).json();
+
+  // Toda encuesta tiene código citable ENC-nnnn.
+  assert.ok(crm.surveys.length >= 9);
+  for (const s of crm.surveys) assert.match(s.code, /^ENC-\d{4}$/);
+
+  // Agregados por cliente: Gina tiene 2 encuestas, 2 respondidas, 2 insatisfechos.
+  const gina = crm.clients.find((c) => c.name === 'Gina');
+  assert.equal(gina.encuestas, 2);
+  assert.equal(gina.respondidas, 2);
+  assert.equal(gina.insatisfecho, 2);
+
+  // Agregados por tipo: A-1 fue el único trabajo de plomería.
+  const plomeria = crm.by_type.find((t) => t.type === 'plomería');
+  assert.equal(plomeria.encuestas, 1);
+  const sinTipo = crm.by_type.find((t) => t.type === '(sin tipo)');
+  assert.ok(sinTipo.encuestas >= 1);
+
+  // Los casos y la actividad vienen para armar la timeline del cliente.
+  assert.ok(crm.cases.length >= 1);
+  assert.ok(crm.activity.length >= 1);
+  assert.ok(crm.metrics.total >= 9);
+});
+
+// ------------------------------------- auth + seed de demo (server C)
+
+test('auth: tablero y API protegidos, encuesta del cliente pública', async () => {
+  // Sin credenciales: 401 en tablero, API y wa.
+  for (const p of ['/', '/api/state', '/api/crm', '/wa/1']) {
+    assert.equal((await fetch(C + p)).status, 401, `${p} debería pedir auth`);
+  }
+  // /healthz siempre público (health-check del hosting).
+  assert.equal((await fetch(`${C}/healthz`)).status, 200);
+
+  // Con credenciales: pasa.
+  const auth = { authorization: 'Basic ' + Buffer.from('admin:secreta123').toString('base64') };
+  const state = await (await fetch(`${C}/api/state`, { headers: auth })).json();
+  assert.ok(state.metrics);
+
+  // La encuesta del cliente final NO pide login jamás. El token no viaja
+  // por la API (correcto): lo sacamos directo de la base de test.
+  const crm = await (await fetch(`${C}/api/crm`, { headers: auth })).json();
+  const sent = crm.surveys.find((s) => s.status === 'sent');
+  const { DatabaseSync } = await import('node:sqlite');
+  const cdb = new DatabaseSync('test-c.db');
+  const tok = cdb.prepare('SELECT token FROM surveys WHERE id = ?').get(sent.id).token;
+  cdb.close();
+  assert.equal((await fetch(`${C}/s/${tok}`)).status, 200);
+});
+
+test('seed de demo: DEMO_SEED=1 puebla encuestas de prueba al arrancar', async () => {
+  const auth = { authorization: 'Basic ' + Buffer.from('admin:secreta123').toString('base64') };
+  const m = await (await fetch(`${C}/api/metrics`, { headers: auth })).json();
+  assert.ok(m.total >= 14, `esperaba >=14 encuestas seed, hay ${m.total}`);
+  assert.ok(m.respondidas >= 10);
+  assert.ok(m.desglose.insatisfecho >= 2);
+
+  const crm = await (await fetch(`${C}/api/crm`, { headers: auth })).json();
+  assert.ok(crm.cases.some((k) => k.status === 'abierto'));
+  assert.ok(crm.cases.some((k) => k.status === 'resuelto'));
+  assert.ok(crm.by_type.length >= 3, 'seed cubre varios tipos de servicio');
+  // Cliente en riesgo (2 insatisfechos del mismo cliente).
+  assert.ok(crm.clients.some((c) => c.insatisfecho >= 2));
+});
+
+// ------------------------------------------------- scheduler (server B)
+
+test('scheduler: diferido → enviada → recordatorio → caso → seguimiento', async () => {
+  const res = await closeJob(B, { ref: 'B-1', client_name: 'Hugo', client_email: 'hugo@x.com' });
+  const body = await res.json();
+  assert.equal(body.status, 'scheduled', 'con delay > 0 queda programada');
+
+  // 1. El scheduler la envía cuando vence el diferido.
+  await poll(async () => {
+    const s = await state(B);
+    return s.unanswered.some((r) => r.job_ref === 'B-1');
+  });
+
+  // 2. Sin respuesta, dispara el recordatorio automático (máx. 1).
+  await poll(async () => {
+    const s = await state(B);
+    return s.activity.some((a) => a.kind === 'reminder' && a.recipient === 'hugo@x.com');
+  });
+
+  // 3. Responde insatisfecho → caso; el scheduler manda el seguimiento al dueño.
+  await respond(body.survey_url, 'insatisfecho');
+  await poll(async () => {
+    const s = await state(B);
+    return s.activity.some((a) => a.kind === 'followup' && a.subject.includes('Hugo'));
+  });
+});
