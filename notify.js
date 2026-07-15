@@ -25,10 +25,8 @@ function webhookFor(kind, channel) {
   return process.env.SEND_WEBHOOK_URL;
 }
 
-export async function deliver(db, { surveyId, kind, channel, recipient, subject, body }) {
-  db.prepare(
-    'INSERT INTO outbox (survey_id, kind, channel, recipient, subject, body) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(surveyId ?? null, kind, channel, recipient, subject, body);
+export async function deliver(store, { surveyId, kind, channel, recipient, subject, body }) {
+  await store.outboxInsert({ survey_id: surveyId ?? null, kind, channel, recipient, subject, body });
 
   const url = webhookFor(kind, channel);
   if (url) {

@@ -18,10 +18,10 @@ const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// SQLite guarda UTC "YYYY-MM-DD HH:MM:SS" → hora local legible.
 const fmt = (s) => {
   if (!s) return '—';
-  const d = new Date(s.replace(' ', 'T') + 'Z');
+  // Acepta ISO 8601 (backends actuales) y el formato legado de SQLite.
+  const d = new Date(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
   return d.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
 

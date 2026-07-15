@@ -1,15 +1,17 @@
-// Scheduler interno: corre en el mismo proceso, sin cron externo.
+// Scheduler: los tres trabajos de tiempo del sistema.
 //
-//   1. Despacha encuestas programadas cuyo horario venció (envío diferido
-//      de 30-60 min adoptado del flujo BERLIM).
-//   2. Reenvío automático a las AUTO_REMINDER_HOURS (default 48) si no hubo
+//   1. Despachar encuestas programadas vencidas (envío diferido).
+//   2. Reenvío automático a las AUTO_REMINDER_HOURS (default 48) sin
 //      respuesta — máximo 1 reenvío total, la regla anti-spam del journey.
-//   3. Seguimiento semanal al dueño por cada caso de insatisfecho abierto.
+//   3. Seguimiento semanal al dueño por caso de insatisfecho abierto.
 //
+// En el server local corre por intervalo (startScheduler). En serverless
+// corre `tickOnce` de forma perezosa por request y/o vía /api/cron.
 // Los canales sin vía automática (whatsapp sin gateway) no se envían solos:
-// pasan a estado `ready` y quedan en el tablero como tap-to-send.
+// pasan a `ready` y quedan como tap-to-send en el tablero.
 
 import { hasWhatsAppGateway } from './notify.js';
+import { nowIso, isoMinus } from './util.js';
 
 const REMINDER_SECONDS = () =>
   Math.round(Number(process.env.AUTO_REMINDER_HOURS ?? 48) * 3600);
@@ -21,67 +23,53 @@ export function canAutoSend(channel) {
 }
 
 // Paso 1 — también se invoca inline tras cerrar un trabajo con delay 0.
-export async function dispatchDue(db, sendSurvey) {
-  const due = db.prepare(`
-    SELECT * FROM surveys
-    WHERE status = 'scheduled' AND scheduled_at <= datetime('now')
-  `).all();
+export async function dispatchDue(store, sendSurvey) {
+  const due = await store.surveysDue(nowIso());
   for (const survey of due) {
-    if (canAutoSend(survey.channel)) {
-      await sendSurvey(survey, 'initial');
-    } else {
-      db.prepare("UPDATE surveys SET status = 'ready' WHERE id = ? AND status = 'scheduled'")
-        .run(survey.id);
-    }
+    if (canAutoSend(survey.channel)) await sendSurvey(survey, 'initial');
+    else await store.updateSurvey(survey.id, { status: 'ready' });
   }
   return due.length;
 }
 
-async function sendReminders(db, sendSurvey) {
+async function sendReminders(store, sendSurvey) {
   const secs = REMINDER_SECONDS();
   if (secs <= 0) return;
-  const due = db.prepare(`
-    SELECT * FROM surveys
-    WHERE status = 'sent' AND resend_count = 0
-      AND sent_at <= datetime('now', '-' || ? || ' seconds')
-  `).all(secs);
+  const due = await store.surveysReminderDue(isoMinus(secs));
   // Sin vía automática, el reenvío queda como botón manual en el tablero.
   for (const survey of due.filter((s) => canAutoSend(s.channel))) {
     await sendSurvey(survey, 'reminder');
   }
 }
 
-async function sendCaseFollowups(db, sendFollowup) {
+async function sendCaseFollowups(store, sendFollowup) {
   const secs = FOLLOWUP_SECONDS();
   if (secs <= 0) return;
-  const due = db.prepare(`
-    SELECT * FROM cases
-    WHERE status != 'resuelto'
-      AND coalesce(last_followup_at, opened_at) <= datetime('now', '-' || ? || ' seconds')
-  `).all(secs);
-  for (const kase of due) {
+  for (const kase of await store.casesFollowupDue(isoMinus(secs))) {
     await sendFollowup(kase);
-    db.prepare("UPDATE cases SET last_followup_at = datetime('now') WHERE id = ?").run(kase.id);
+    await store.updateCase(kase.id, { last_followup_at: nowIso() });
   }
 }
 
-export function startScheduler(db, { sendSurvey, sendFollowup }) {
+let running = false;
+
+export async function tickOnce(store, { sendSurvey, sendFollowup }) {
+  if (running) return;
+  running = true;
+  try {
+    await dispatchDue(store, sendSurvey);
+    await sendReminders(store, sendSurvey);
+    await sendCaseFollowups(store, sendFollowup);
+  } catch (err) {
+    console.error('[scheduler]', err);
+  } finally {
+    running = false;
+  }
+}
+
+export function startScheduler(store, actions) {
   const tickMs = Number(process.env.TICK_MS || 30_000);
-  let running = false;
-  const tick = async () => {
-    if (running) return;
-    running = true;
-    try {
-      await dispatchDue(db, sendSurvey);
-      await sendReminders(db, sendSurvey);
-      await sendCaseFollowups(db, sendFollowup);
-    } catch (err) {
-      console.error('[scheduler]', err);
-    } finally {
-      running = false;
-    }
-  };
-  const timer = setInterval(tick, tickMs);
+  const timer = setInterval(() => tickOnce(store, actions), tickMs);
   timer.unref?.();
-  return { tick, stop: () => clearInterval(timer) };
+  return { stop: () => clearInterval(timer) };
 }

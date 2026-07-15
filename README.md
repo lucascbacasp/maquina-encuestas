@@ -21,23 +21,44 @@ npm run seed          # poblar encuestas de prueba (o DEMO_SEED=1 al arrancar)
 node --test test.js   # tests end-to-end (flujos + scheduler + auth + seed)
 ```
 
-## Deploy en Render (URL pública en ~5 minutos)
+## Deploy en Vercel + Supabase (URL pública)
 
-1. En [render.com](https://render.com): **New + → Blueprint** y elegir este
-   repo — Render lee `render.yaml` y configura todo solo (plan free).
-2. Cargar en el dashboard las dos variables marcadas como manuales:
-   `ADMIN_PASS` (la clave del tablero) y opcionalmente `GOOGLE_REVIEW_URL`.
-3. Listo: la URL pública queda tipo `https://maquina-encuestas.onrender.com`.
-   `BASE_URL` no hace falta (usa `RENDER_EXTERNAL_URL` automáticamente) y
-   `DEMO_SEED=1` repuebla los datos de prueba cada vez que el servicio
-   despierta — el plan free tiene filesystem efímero, ideal para demo.
-   Guión de presentación en [`docs/guion-demo.md`](docs/guion-demo.md).
+El sistema corre en dos modos: **proceso persistente** (local/VPS, SQLite,
+cero config) o **serverless** (Vercel) con el estado en Postgres (Supabase).
+`store.js` elige el backend según las variables de entorno.
 
-Para datos persistentes (piloto real): Render con disco pago o Railway/Fly
-con volumen — solo hay que apuntar `DB_PATH` al mount. También hay
-`Dockerfile` para cualquier otro host.
+1. En [vercel.com](https://vercel.com): **Add New → Project** → importar
+   este repo. Framework preset: **Other** (no hay build).
+2. Variables de entorno del proyecto:
 
-> Si venís del MVP v1, borrá `encuestas.db` (el esquema cambió).
+   | Variable | Valor |
+   |---|---|
+   | `SUPABASE_URL` | la URL del proyecto de Supabase |
+   | `SUPABASE_SERVICE_ROLE_KEY` | la service key (Supabase → Settings → API Keys). Solo vive en el server |
+   | `ADMIN_PASS` | clave del tablero (usuario `admin`) |
+   | `DEMO_SEED` | `1` para poblar encuestas de prueba la primera vez |
+   | `CRON_SECRET` | un secreto cualquiera; autentica `/api/cron` |
+   | `GOOGLE_REVIEW_URL` | opcional: link de reseñas de Google |
+
+3. Deploy. Verificar con `https://<tu-app>.vercel.app/api/selftest`
+   (pide la clave del tablero): tiene que responder `ok: true` y
+   `backend: "supabase"`.
+
+La base la crea la migración de `docs/` (tablas `enc_*` con RLS, aisladas
+dentro del proyecto de Supabase). Los datos **persisten** — el seed corre
+una sola vez.
+
+**El scheduler en serverless**: no hay proceso residente, así que los
+trabajos de tiempo (envío diferido, reenvío 48hs, seguimiento semanal)
+corren de forma perezosa con cada visita al tablero (máx. 1 vez/min) y
+vía `GET /api/cron` (Vercel cron diario incluido en `vercel.json`; para
+más frecuencia, un ping externo gratuito tipo cron-job.org cada 15 min
+con `?secret=CRON_SECRET`). Para una demo, con tener el tablero abierto
+alcanza.
+
+**Alternativas**: `node server.js` en cualquier VPS o Railway/Fly
+(SQLite o Supabase, scheduler interno real), `render.yaml` para Render,
+`Dockerfile` para todo lo demás.
 
 ## Canales de envío — automatizar sin depender de Meta
 
@@ -103,7 +124,9 @@ entidad central. Las vistas están separadas por tarea (ver el análisis en
 | `ALERT_WEBHOOK_URL` | `SEND_WEBHOOK_URL` | Alertas y seguimientos al dueño |
 | `OWNER_CONTACT` | — | Destinatario de alertas/seguimientos |
 | `ADMIN_USER` / `ADMIN_PASS` | `admin` / — | Basic Auth del tablero y la API (sin `ADMIN_PASS` queda abierto: solo dev). Las encuestas del cliente (`/s/:token`) son siempre públicas |
-| `DEMO_SEED` | — | Con `1`, puebla datos de prueba al arrancar con base vacía (ideal hosting efímero) |
+| `DEMO_SEED` | — | Con `1`, puebla datos de prueba al arrancar con base vacía |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | — | Con ambas, el estado vive en Postgres (Supabase) en vez de SQLite |
+| `CRON_SECRET` | — | Autentica `GET /api/cron` (tick del scheduler desde afuera) |
 
 El payload de todos los webhooks es
 `{kind, channel, recipient, subject, body}` — un `if` en Zapier/n8n alcanza
@@ -126,13 +149,18 @@ para rutearlo a cualquier proveedor.
 ## Estructura
 
 ```
-server.js      rutas + flujo core + páginas públicas de encuesta (SSR)
-db.js          esquema y consultas (node:sqlite)
-notify.js      outbox + webhooks + links wa.me + textos de mensajes
-scheduler.js   envíos diferidos, recordatorios 48hs, seguimiento de casos
-public/        tablero (SPA vanilla: index.html, app.js, style.css)
-test.js        tests end-to-end contra el server real (incluye scheduler)
-docs/          user journey, comparación con flujo BERLIM, capturas
+handler.js         rutas + flujo core + páginas públicas (agnóstico de runtime y datos)
+store.js           elige backend: SQLite (default) o Supabase (serverless)
+store-sqlite.js    node:sqlite — local, VPS, tests
+store-supabase.js  Postgres vía PostgREST con fetch (sin SDK)
+scheduler.js       envío diferido, reenvío 48hs, seguimiento de casos
+notify.js          outbox + webhooks + links wa.me + textos de mensajes
+seed.js            datos de demo (npm run seed / DEMO_SEED=1)
+server.js          runner local/VPS (proceso persistente + scheduler)
+api/index.js       entry point serverless (Vercel)
+public/            tablero (SPA vanilla, sin build)
+test.js            tests end-to-end contra el server real
+docs/              journeys, comparación BERLIM, planes, capturas
 ```
 
 ## Qué queda para después
