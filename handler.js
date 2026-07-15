@@ -8,6 +8,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createHmac, createHash } from 'node:crypto';
 import {
   deliver, waLink, hasWhatsAppGateway,
   surveyMessage, alertMessage, followupMessage, resolutionMessage,
@@ -138,8 +139,128 @@ function thanksPageHtml({ already, rating }) {
     ${review}`);
 }
 
+// Landing pública: mínima explicación + caja de login (gerente u operador).
+function landingPage() {
+  return `<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Tu sistema automático de encuestas post-servicio: cada trabajo terminado dispara una encuesta de una pregunta.">
+<title>Máquina de Encuestas</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a6fc4'/%3E%3Cpath d='M9 17l4.5 4.5L23 12' stroke='%23fff' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  @font-face {
+    font-family: 'Outfit';
+    src: url('/fonts/Outfit-Variable.woff2') format('woff2');
+    font-weight: 300 800;
+    font-display: swap;
+  }
+  :root {
+    color-scheme: light;
+    --page: #f7f6f2; --surface: #fdfdfb; --raised: #ffffff; --ink: #1c1b18;
+    --ink-2: #5f5c55; --muted: #8f8c83; --hairline: #e7e5de;
+    --accent: #2a6fc4; --accent-ink: #fff; --crit: #c73a3a;
+    --shadow: 0 1px 2px rgba(28,27,24,.04), 0 10px 28px -14px rgba(28,27,24,.10);
+    --ring: 0 0 0 2px var(--page), 0 0 0 4px var(--accent);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #131311; --surface: #1b1b18; --raised: #21211e; --ink: #f4f3ef;
+      --ink-2: #b8b5ac; --muted: #8f8c83; --hairline: #2b2b27;
+      --accent: #5b96e0; --accent-ink: #10131a; --crit: #d96666;
+      --shadow: 0 1px 2px rgba(0,0,0,.25), 0 12px 32px -16px rgba(0,0,0,.45);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Outfit', 'Segoe UI Variable Display', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+    background: var(--page); color: var(--ink); margin: 0; line-height: 1.55;
+    min-height: 100dvh; display: grid; place-items: center; padding: 2rem 1.2rem;
+  }
+  .wrap {
+    display: grid; grid-template-columns: 1fr; gap: 2.5rem;
+    max-width: 880px; width: 100%; align-items: center;
+  }
+  @media (min-width: 760px) { .wrap { grid-template-columns: 1.2fr 1fr; gap: 4rem; } }
+  .mark { width: 44px; height: 44px; border-radius: 12px; background: var(--accent);
+    display: grid; place-items: center; margin-bottom: 1.1rem; }
+  .mark svg { width: 26px; height: 26px; }
+  h1 { font-size: 1.9rem; font-weight: 650; letter-spacing: -0.025em; line-height: 1.12; margin: 0 0 .4rem; text-wrap: balance; }
+  .sub { color: var(--ink-2); font-size: 1.05rem; margin: 0 0 1.6rem; max-width: 38ch; }
+  ul.feats { list-style: none; padding: 0; margin: 0; display: grid; gap: .65rem; color: var(--ink-2); font-size: .93rem; }
+  ul.feats li { display: flex; gap: .6rem; align-items: baseline; }
+  ul.feats li::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 3px; background: var(--accent); transform: translateY(-1px); }
+  .login {
+    background: var(--surface); border-radius: 16px; box-shadow: var(--shadow);
+    padding: 1.6rem 1.5rem; display: grid; gap: .8rem;
+  }
+  .login h2 { margin: 0 0 .2rem; font-size: 1.02rem; font-weight: 600; letter-spacing: -0.01em; }
+  .login label { font-size: .82rem; font-weight: 550; color: var(--ink-2); display: grid; gap: .3rem; }
+  .login input {
+    font: inherit; color: var(--ink); background: var(--raised);
+    border: 1px solid var(--hairline); border-radius: 9px; padding: .55rem .7rem;
+    transition: border-color .18s ease;
+  }
+  .login input:hover { border-color: var(--accent); }
+  .login button {
+    font: inherit; font-weight: 600; cursor: pointer; margin-top: .3rem;
+    background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent);
+    border-radius: 9px; padding: .6rem; transition: filter .18s ease, transform .12s ease;
+  }
+  .login button:hover { filter: brightness(1.07); }
+  .login button:active { transform: translateY(1px) scale(.99); }
+  .hint { color: var(--muted); font-size: .8rem; margin: 0; }
+  .error { color: var(--crit); font-size: .85rem; min-height: 1.2em; margin: 0; }
+  :focus-visible { outline: none; box-shadow: var(--ring); border-radius: 6px; }
+</style>
+</head><body>
+<div class="wrap">
+  <section>
+    <div class="mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32"><path d="M6 17l6 6L26 9" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <h1>Máquina de Encuestas</h1>
+    <p class="sub">Tu sistema automático de encuestas post-servicio.</p>
+    <ul class="feats">
+      <li>Cada trabajo terminado dispara una encuesta de una sola pregunta, por email o WhatsApp.</li>
+      <li>El cliente responde con un toque, sin registrarse.</li>
+      <li>Cada insatisfecho se convierte en una alerta y un caso para recuperarlo el mismo día.</li>
+      <li>Resultados por tipo de servicio y por cliente, en un vistazo.</li>
+    </ul>
+  </section>
+  <form class="login" id="login" autocomplete="on">
+    <h2>Ingresar</h2>
+    <label>Usuario
+      <input name="user" autocomplete="username" placeholder="operador o admin" required>
+    </label>
+    <label>Clave
+      <input name="pass" type="password" autocomplete="current-password" required>
+    </label>
+    <p class="error" id="error" role="alert"></p>
+    <button>Entrar</button>
+    <p class="hint">Operador: cierra trabajos y gestiona los envíos. Gerente: además ve el registro completo y los resultados de la empresa.</p>
+  </form>
+</div>
+<script>
+document.getElementById('login').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const err = document.getElementById('error');
+  err.textContent = '';
+  const data = Object.fromEntries(new FormData(e.target));
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (res.ok) location.href = '/app';
+  else err.textContent = 'Usuario o clave incorrectos.';
+});
+</script>
+</body></html>`;
+}
+
 const STATIC = {
-  '/': ['index.html', 'text/html; charset=utf-8'],
+  '/app': ['index.html', 'text/html; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
 };
@@ -159,9 +280,39 @@ export function createApp(store) {
   const ADMIN_PASS = process.env.ADMIN_PASS || '';
   const OPERATOR_USER = process.env.OPERATOR_USER || 'operador';
   const OPERATOR_PASS = process.env.OPERATOR_PASS || '';
-  const PUBLIC_ROUTES = /^\/(s\/[a-f0-9]{32}|fonts\/|healthz$)/;
+  const PUBLIC_ROUTES = /^\/($|s\/[a-f0-9]{32}$|fonts\/|healthz$|app\.js$|style\.css$|api\/login$)/;
   // Vistas globales de empresa: solo gerente (se aplica en el server).
   const MANAGER_ROUTES = new Set(['/api/crm', '/api/selftest']);
+
+  // Sesión con cookie firmada (HMAC) — sin dependencias ni tabla de sesiones.
+  // Rotar cualquiera de las claves invalida todas las sesiones.
+  const SESSION_SECRET = process.env.SESSION_SECRET ||
+    createHash('sha256').update(`mq-v1|${ADMIN_PASS}|${OPERATOR_PASS}`).digest('hex');
+  const SESSION_DAYS = 7;
+  const sign = (payload) => createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+
+  function sessionCookie(role) {
+    const exp = Date.now() + SESSION_DAYS * 86_400_000;
+    const payload = `${role}.${exp}`;
+    const secure = BASE_URL.startsWith('https') ? '; Secure' : '';
+    return `sesion=${payload}.${sign(payload)}; Path=/; Max-Age=${SESSION_DAYS * 86400}; HttpOnly; SameSite=Lax${secure}`;
+  }
+
+  function sessionRole(req) {
+    const cookie = (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith('sesion='));
+    if (!cookie) return null;
+    const [role, exp, sig] = cookie.slice(7).split('.');
+    if (!role || !exp || !sig) return null;
+    if (sign(`${role}.${exp}`) !== sig) return null;
+    if (Number(exp) < Date.now()) return null;
+    return ['gerente', 'operador'].includes(role) ? role : null;
+  }
+
+  function credentialsRole(user, pass) {
+    if (user === ADMIN_USER && pass === ADMIN_PASS) return 'gerente';
+    if (OPERATOR_PASS && user === OPERATOR_USER && pass === OPERATOR_PASS) return 'operador';
+    return null;
+  }
 
   // ------------------------------------------------------------- flujo core
 
@@ -302,16 +453,15 @@ export function createApp(store) {
 
   // ------------------------------------------------------------- auth
 
-  // Rol según credenciales: 'gerente' (todo) u 'operador' (operación diaria).
+  // Rol del request: sesión (cookie del login) o Basic Auth (integraciones).
   function roleFor(req) {
     if (!ADMIN_PASS) return 'gerente'; // sin ADMIN_PASS no hay auth (modo dev)
+    const fromSession = sessionRole(req);
+    if (fromSession) return fromSession;
     const header = req.headers.authorization || '';
     if (!header.startsWith('Basic ')) return null;
     const [user, ...rest] = Buffer.from(header.slice(6), 'base64').toString().split(':');
-    const pass = rest.join(':');
-    if (user === ADMIN_USER && pass === ADMIN_PASS) return 'gerente';
-    if (OPERATOR_PASS && user === OPERATOR_USER && pass === OPERATOR_PASS) return 'operador';
-    return null;
+    return credentialsRole(user, rest.join(':'));
   }
 
   function isCronAuthorized(req, url) {
@@ -354,6 +504,34 @@ export function createApp(store) {
     try {
       if (req.method === 'GET' && path === '/healthz') return sendJson(res, 200, { ok: true });
 
+      // Landing pública con caja de login. Con sesión activa, directo al tablero.
+      if (req.method === 'GET' && path === '/') {
+        if (ADMIN_PASS && !sessionRole(req)) return sendHtml(res, 200, landingPage());
+        return redirect(res, '/app');
+      }
+
+      if (req.method === 'POST' && path === '/api/login') {
+        const b = await readBody(req);
+        const role = ADMIN_PASS ? credentialsRole((b.user || '').trim(), b.pass || '') : 'gerente';
+        if (!role) {
+          await new Promise((r) => setTimeout(r, 350)); // frena fuerza bruta
+          return sendJson(res, 401, { error: 'usuario o clave incorrectos' });
+        }
+        res.writeHead(200, {
+          'content-type': 'application/json',
+          'set-cookie': sessionCookie(role),
+        });
+        return res.end(JSON.stringify({ ok: true, role }));
+      }
+
+      if (req.method === 'POST' && path === '/api/logout') {
+        res.writeHead(200, {
+          'content-type': 'application/json',
+          'set-cookie': 'sesion=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax',
+        });
+        return res.end(JSON.stringify({ ok: true }));
+      }
+
       await ensureReady();
 
       // Cron externo (Vercel cron / cron-job.org / GitHub Actions).
@@ -366,11 +544,8 @@ export function createApp(store) {
 
       const role = PUBLIC_ROUTES.test(path) ? null : roleFor(req);
       if (!PUBLIC_ROUTES.test(path) && !role) {
-        res.writeHead(401, {
-          'www-authenticate': 'Basic realm="Máquina de Encuestas"',
-          'content-type': 'application/json',
-        });
-        return res.end(JSON.stringify({ error: 'autenticación requerida' }));
+        if (path === '/app') return redirect(res, '/'); // a la landing con login
+        return sendJson(res, 401, { error: 'autenticación requerida' });
       }
       if (MANAGER_ROUTES.has(path) && role !== 'gerente') {
         return sendJson(res, 403, { error: 'vista disponible solo para gerente' });

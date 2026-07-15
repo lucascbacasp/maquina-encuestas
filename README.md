@@ -121,6 +121,13 @@ Dos credenciales sobre el mismo Basic Auth, aplicadas **en el servidor**:
 El operador recibe `403` en `/api/crm` y `/api/selftest` — la restricción no
 es solo esconder pestañas. El rol viene en `config.role` de `/api/state`.
 
+**Entrada**: la landing en `/` explica el sistema y tiene la caja de login;
+al ingresar se crea una sesión de 7 días por cookie firmada (HMAC, sin
+dependencias) y se pasa al tablero en `/app`. La API también acepta Basic
+Auth directo (integraciones y scripts). `SESSION_SECRET` es opcional: sin
+ella, la firma se deriva de las claves (rotar una clave invalida las
+sesiones).
+
 
 ## Configuración (env, todo opcional)
 

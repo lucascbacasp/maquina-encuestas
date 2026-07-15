@@ -65,10 +65,16 @@ async function post(url, body) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body || {}),
   });
+  if (res.status === 401) { location.href = '/'; return {}; } // sesión vencida
   const data = await res.json().catch(() => ({}));
   if (!res.ok) toast(data.error || 'No se pudo completar la acción.');
   return data;
 }
+
+document.getElementById('logout')?.addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  location.href = '/';
+});
 
 // ================================================================ Operación
 
@@ -430,7 +436,9 @@ async function refresh(force = false) {
   const view = routes().view;
   try {
     if (view === 'operacion' || role === null) {
-      const text = await (await fetch('/api/state')).text();
+      const res = await fetch('/api/state');
+      if (res.status === 401) { location.href = '/'; return; } // sesión vencida
+      const text = await res.text();
       if (force || text !== lastStateText) {
         lastStateText = text;
         statePayload = JSON.parse(text);

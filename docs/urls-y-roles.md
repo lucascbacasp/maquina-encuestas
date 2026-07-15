@@ -3,9 +3,11 @@
 Base: `https://maquina-encuestas.vercel.app` (si tu proyecto de Vercel tiene
 otro dominio, reemplazá la base; las rutas son las mismas).
 
-Las vistas del tablero son rutas `#hash` sobre la misma página: el login
-(Basic Auth) aparece una sola vez por sesión de navegador. Para cambiar de
-usuario en el mismo navegador: ventana de incógnito o cerrar/reabrir.
+La entrada es la **landing** en `/`: explica el sistema y tiene la caja de
+login. Al ingresar (operador o gerente) se crea una sesión de 7 días por
+cookie y se pasa al tablero en `/app`. El botón **Salir** del tablero cierra
+la sesión — cambiar de usuario ya no requiere incógnito. Las vistas del
+tablero son rutas `#hash` sobre `/app`.
 
 ## Mapa de URLs
 
@@ -13,11 +15,12 @@ usuario en el mismo navegador: ventana de incógnito o cerrar/reabrir.
 |---|---|---|
 | `/s/<token>` | **Público** (cada link es único) | La encuesta del cliente: 1 pregunta, 3 botones, sin login |
 | `/healthz` | Público | Health check del hosting |
-| `/` o `/#operacion` | Operador y gerente | Vista **Operación** |
-| `/#encuestas` | Solo gerente | Registro CRM completo con filtros y export |
-| `/#clientes` | Solo gerente | Clientes con agregados |
-| `/#cliente/<id>` | Solo gerente | Ficha del cliente con línea de tiempo |
-| `/#resultados` | Solo gerente | Resultados globales de la empresa |
+| `/` | **Público** | Landing: qué es el sistema + caja de login (con sesión activa redirige a `/app`) |
+| `/app` o `/app#operacion` | Operador y gerente | Vista **Operación** |
+| `/app#encuestas` | Solo gerente | Registro CRM completo con filtros y export |
+| `/app#clientes` | Solo gerente | Clientes con agregados |
+| `/app#cliente/<id>` | Solo gerente | Ficha del cliente con línea de tiempo |
+| `/app#resultados` | Solo gerente | Resultados globales de la empresa |
 | `/api/selftest` | Solo gerente | Diagnóstico del deploy (backend, conteos) |
 | `/api/cron?secret=<CRON_SECRET>` | Sistema (cron externo) | Dispara el tick del scheduler |
 | `POST /api/jobs/close` | Operador, gerente o sistema externo | El hook que cierra un trabajo y dispara la encuesta |

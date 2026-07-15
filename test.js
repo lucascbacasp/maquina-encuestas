@@ -228,11 +228,17 @@ test('CRM: registro con IDs legibles y agregados por cliente y tipo', async () =
 // ------------------------------------- auth + seed de demo (server C)
 
 test('auth: tablero y API protegidos, encuesta del cliente pública', async () => {
-  // Sin credenciales: 401 en tablero, API y wa.
-  for (const p of ['/', '/api/state', '/api/crm', '/wa/1']) {
+  // Sin credenciales: 401 en API y wa; /app redirige a la landing.
+  for (const p of ['/api/state', '/api/crm', '/wa/1']) {
     assert.equal((await fetch(C + p)).status, 401, `${p} debería pedir auth`);
   }
-  // /healthz siempre público (health-check del hosting).
+  const appRedirect = await fetch(`${C}/app`, { redirect: 'manual' });
+  assert.equal(appRedirect.status, 302);
+  assert.equal(appRedirect.headers.get('location'), '/');
+  // Landing pública con la caja de login; /healthz siempre público.
+  const landing = await (await fetch(C + '/')).text();
+  assert.match(landing, /sistema automático de encuestas/);
+  assert.match(landing, /id="login"/);
   assert.equal((await fetch(`${C}/healthz`)).status, 200);
 
   // Con credenciales: pasa.
@@ -292,6 +298,43 @@ test('roles: operador opera; las vistas globales son solo del gerente', async ()
   assert.equal((await fetch(`${C}/api/crm`, { headers: operador })).status, 403);
   assert.equal((await fetch(`${C}/api/selftest`, { headers: operador })).status, 403);
   assert.equal((await fetch(`${C}/api/crm`, { headers: gerente })).status, 200);
+});
+
+test('login: la caja de la landing crea sesión por cookie y respeta roles', async () => {
+  // Credenciales malas: 401.
+  const bad = await fetch(`${C}/api/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ user: 'admin', pass: 'nope' }),
+  });
+  assert.equal(bad.status, 401);
+
+  // Login de operador: cookie de sesión que funciona sin Basic Auth.
+  const login = await fetch(`${C}/api/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ user: 'operador', pass: 'op456' }),
+  });
+  assert.equal(login.status, 200);
+  assert.equal((await login.json()).role, 'operador');
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  assert.match(cookie, /^sesion=operador\./);
+
+  const state = await (await fetch(`${C}/api/state`, { headers: { cookie } })).json();
+  assert.equal(state.config.role, 'operador');
+  assert.equal((await fetch(`${C}/api/crm`, { headers: { cookie } })).status, 403);
+  assert.equal((await fetch(`${C}/app`, { headers: { cookie }, redirect: 'manual' })).status, 200);
+
+  // Con sesión activa, '/' redirige directo al tablero.
+  const home = await fetch(C + '/', { headers: { cookie }, redirect: 'manual' });
+  assert.equal(home.status, 302);
+  assert.equal(home.headers.get('location'), '/app');
+
+  // Una cookie adulterada no vale.
+  const forged = cookie.replace('operador', 'gerente\u002e').split('.').slice(0, 2).join('.') + '.abc';
+  assert.equal((await fetch(`${C}/api/state`, { headers: { cookie: forged } })).status, 401);
+
+  // Logout: la cookie queda vencida.
+  const out = await fetch(`${C}/api/logout`, { method: 'POST', headers: { cookie } });
+  assert.match(out.headers.get('set-cookie'), /Max-Age=0/);
 });
 
 // ------------------------------------------------- scheduler (server B)
