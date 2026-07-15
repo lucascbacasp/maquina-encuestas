@@ -82,7 +82,7 @@ before(async () => {
   });
   startServer(3779, 'test-c.db', {
     SEND_DELAY_MINUTES: '0', AUTO_REMINDER_HOURS: '0', TICK_MS: '100000',
-    ADMIN_PASS: 'secreta123', DEMO_SEED: '1',
+    ADMIN_PASS: 'secreta123', OPERATOR_USER: 'operador', OPERATOR_PASS: 'op456', DEMO_SEED: '1',
   });
   await Promise.all([waitUp(A), waitUp(B), waitUp(C)]);
 });
@@ -264,6 +264,34 @@ test('seed de demo: DEMO_SEED=1 puebla encuestas de prueba al arrancar', async (
   assert.ok(crm.by_type.length >= 3, 'seed cubre varios tipos de servicio');
   // Cliente en riesgo (2 insatisfechos del mismo cliente).
   assert.ok(crm.clients.some((c) => c.insatisfecho >= 2));
+});
+
+test('roles: operador opera; las vistas globales son solo del gerente', async () => {
+  const basic = (u, p) => ({ authorization: 'Basic ' + Buffer.from(`${u}:${p}`).toString('base64') });
+  const gerente = basic('admin', 'secreta123');
+  const operador = basic('operador', 'op456');
+
+  // Credenciales inválidas: 401.
+  assert.equal((await fetch(`${C}/api/state`, { headers: basic('x', 'y') })).status, 401);
+
+  // El server informa el rol de cada credencial.
+  const sG = await (await fetch(`${C}/api/state`, { headers: gerente })).json();
+  assert.equal(sG.config.role, 'gerente');
+  const sO = await (await fetch(`${C}/api/state`, { headers: operador })).json();
+  assert.equal(sO.config.role, 'operador');
+
+  // El operador dispara encuestas (su función central).
+  const close = await fetch(`${C}/api/jobs/close`, {
+    method: 'POST',
+    headers: { ...operador, 'content-type': 'application/json' },
+    body: JSON.stringify({ ref: 'C-OP-1', type: 'plomería', client_name: 'Op Cliente', client_email: 'op@x.com' }),
+  });
+  assert.equal(close.status, 201);
+
+  // Vistas globales de empresa: 403 para operador, 200 para gerente.
+  assert.equal((await fetch(`${C}/api/crm`, { headers: operador })).status, 403);
+  assert.equal((await fetch(`${C}/api/selftest`, { headers: operador })).status, 403);
+  assert.equal((await fetch(`${C}/api/crm`, { headers: gerente })).status, 200);
 });
 
 // ------------------------------------------------- scheduler (server B)

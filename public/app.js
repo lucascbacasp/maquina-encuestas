@@ -10,6 +10,7 @@ let statePayload = null;  // /api/state  → operación
 let crmPayload = null;    // /api/crm    → encuestas / clientes / resultados
 let lastStateText = '';
 let lastCrmText = '';
+let role = null; // 'gerente' | 'operador' (lo informa /api/state)
 
 // Filtros de la vista Encuestas (persisten entre renders).
 const F = { status: '', type: '', q: '' };
@@ -395,8 +396,23 @@ const routes = () => {
   return { view: 'operacion', tab: '#operacion' };
 };
 
+const MANAGER_TABS = ['#encuestas', '#clientes', '#resultados'];
+
+function applyRole() {
+  document.querySelectorAll('.tabs a').forEach((a) => {
+    if (MANAGER_TABS.includes(a.getAttribute('href'))) {
+      a.style.display = role === 'operador' ? 'none' : '';
+    }
+  });
+}
+
 function renderCurrent() {
   const r = routes();
+  // El operador solo tiene la vista Operación (el server igual lo aplica con 403).
+  if (role === 'operador' && r.tab !== '#operacion') {
+    location.hash = '#operacion';
+    return;
+  }
   document.querySelectorAll('.tabs a').forEach((a) =>
     a.getAttribute('href') === r.tab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
   app.innerHTML =
@@ -413,20 +429,28 @@ async function refresh(force = false) {
       /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
   const view = routes().view;
   try {
-    if (view === 'operacion') {
+    if (view === 'operacion' || role === null) {
       const text = await (await fetch('/api/state')).text();
-      if (!force && text === lastStateText) return;
-      lastStateText = text;
-      statePayload = JSON.parse(text);
-      const cfg = statePayload.config;
-      configLine.textContent =
-        `Envío diferido: ${cfg.delay_minutes} min · WhatsApp: ${cfg.wa_gateway ? 'gateway automático' : 'tap-to-send (wa.me)'}` +
-        ` · Reseña Google: ${cfg.google_review ? 'activa' : 'sin configurar'}`;
-    } else {
-      const text = await (await fetch('/api/crm')).text();
-      if (!force && text === lastCrmText) return;
-      lastCrmText = text;
-      crmPayload = JSON.parse(text);
+      if (force || text !== lastStateText) {
+        lastStateText = text;
+        statePayload = JSON.parse(text);
+        const cfg = statePayload.config;
+        role = cfg.role || 'gerente';
+        applyRole();
+        configLine.textContent =
+          `${role === 'operador' ? 'Operador · ' : ''}Envío diferido: ${cfg.delay_minutes} min · ` +
+          `WhatsApp: ${cfg.wa_gateway ? 'gateway automático' : 'tap-to-send (wa.me)'}` +
+          ` · Reseña Google: ${cfg.google_review ? 'activa' : 'sin configurar'}`;
+      }
+    }
+    if (view !== 'operacion' && role !== 'operador') {
+      const res = await fetch('/api/crm');
+      if (res.status === 403) { role = 'operador'; applyRole(); renderCurrent(); return; }
+      const text = await res.text();
+      if (force || text !== lastCrmText) {
+        lastCrmText = text;
+        crmPayload = JSON.parse(text);
+      }
     }
     renderCurrent();
   } catch {

@@ -157,7 +157,11 @@ export function createApp(store) {
   const DELAY_SECONDS = Math.round(Number(process.env.SEND_DELAY_MINUTES ?? 45) * 60);
   const ADMIN_USER = process.env.ADMIN_USER || 'admin';
   const ADMIN_PASS = process.env.ADMIN_PASS || '';
+  const OPERATOR_USER = process.env.OPERATOR_USER || 'operador';
+  const OPERATOR_PASS = process.env.OPERATOR_PASS || '';
   const PUBLIC_ROUTES = /^\/(s\/[a-f0-9]{32}|fonts\/|healthz$)/;
+  // Vistas globales de empresa: solo gerente (se aplica en el server).
+  const MANAGER_ROUTES = new Set(['/api/crm', '/api/selftest']);
 
   // ------------------------------------------------------------- flujo core
 
@@ -273,7 +277,7 @@ export function createApp(store) {
     job_ref: r.job_ref, job_type: r.job_type,
   });
 
-  async function stateForDashboard() {
+  async function stateForDashboard(role) {
     const rows = await store.surveysJoined(200);
     return {
       metrics: await metrics(),
@@ -291,18 +295,23 @@ export function createApp(store) {
         wa_gateway: hasWhatsAppGateway(),
         google_review: Boolean(process.env.GOOGLE_REVIEW_URL),
         auto_reminder_hours: Number(process.env.AUTO_REMINDER_HOURS ?? 48),
+        role,
       },
     };
   }
 
   // ------------------------------------------------------------- auth
 
-  function isAuthorized(req) {
-    if (!ADMIN_PASS) return true; // sin ADMIN_PASS no hay auth (modo dev)
+  // Rol según credenciales: 'gerente' (todo) u 'operador' (operación diaria).
+  function roleFor(req) {
+    if (!ADMIN_PASS) return 'gerente'; // sin ADMIN_PASS no hay auth (modo dev)
     const header = req.headers.authorization || '';
-    if (!header.startsWith('Basic ')) return false;
+    if (!header.startsWith('Basic ')) return null;
     const [user, ...rest] = Buffer.from(header.slice(6), 'base64').toString().split(':');
-    return user === ADMIN_USER && rest.join(':') === ADMIN_PASS;
+    const pass = rest.join(':');
+    if (user === ADMIN_USER && pass === ADMIN_PASS) return 'gerente';
+    if (OPERATOR_PASS && user === OPERATOR_USER && pass === OPERATOR_PASS) return 'operador';
+    return null;
   }
 
   function isCronAuthorized(req, url) {
@@ -311,7 +320,7 @@ export function createApp(store) {
       return req.headers.authorization === `Bearer ${secret}` ||
              url.searchParams.get('secret') === secret;
     }
-    return isAuthorized(req);
+    return roleFor(req) === 'gerente';
   }
 
   // --------------------------------------------- arranque perezoso + tick
@@ -355,12 +364,16 @@ export function createApp(store) {
         return sendJson(res, 200, { ok: true, ran_at: nowIso() });
       }
 
-      if (!PUBLIC_ROUTES.test(path) && !isAuthorized(req)) {
+      const role = PUBLIC_ROUTES.test(path) ? null : roleFor(req);
+      if (!PUBLIC_ROUTES.test(path) && !role) {
         res.writeHead(401, {
           'www-authenticate': 'Basic realm="Máquina de Encuestas"',
           'content-type': 'application/json',
         });
         return res.end(JSON.stringify({ error: 'autenticación requerida' }));
+      }
+      if (MANAGER_ROUTES.has(path) && role !== 'gerente') {
+        return sendJson(res, 403, { error: 'vista disponible solo para gerente' });
       }
 
       // ------- tablero (SPA estática, sin build)
@@ -398,7 +411,7 @@ export function createApp(store) {
 
       if (req.method === 'GET' && path === '/api/state') {
         await lazyTick();
-        return sendJson(res, 200, await stateForDashboard());
+        return sendJson(res, 200, await stateForDashboard(role));
       }
       if (req.method === 'GET' && path === '/api/metrics') return sendJson(res, 200, await metrics());
 
