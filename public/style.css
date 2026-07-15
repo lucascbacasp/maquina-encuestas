@@ -6,16 +6,6 @@
    al tono del fondo; nada de negro puro.
    ============================================================ */
 
-/* Fuente con carácter, self-hosteada: soltar Outfit-Variable.woff2
-   en public/fonts/ y se activa sola; mientras tanto cae al stack
-   de sistema (nunca link a CDN de fuentes). */
-@font-face {
-  font-family: 'Outfit';
-  src: url('/fonts/Outfit-Variable.woff2') format('woff2');
-  font-weight: 300 800;
-  font-display: swap;
-}
-
 :root {
   color-scheme: light;
   --page:      #f7f6f2;
@@ -59,7 +49,7 @@
 * { box-sizing: border-box; }
 
 body {
-  font-family: 'Outfit', 'Segoe UI Variable Display', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+  font-family: 'Segoe UI Variable Display', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
   background: var(--page);
   color: var(--ink);
   max-width: 1020px;

@@ -45,12 +45,14 @@ function readBody(req) {
   });
 }
 
+// HTML y JSON dependen de la sesión: jamás se cachean (un frontend viejo
+// cacheado polleando con código viejo fue un bug real en producción).
 const sendHtml = (res, status, html) => {
-  res.writeHead(status, { 'content-type': 'text/html; charset=utf-8' });
+  res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
   res.end(html);
 };
 const sendJson = (res, status, obj) => {
-  res.writeHead(status, { 'content-type': 'application/json' });
+  res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
   res.end(JSON.stringify(obj));
 };
 const redirect = (res, to) => {
@@ -67,12 +69,6 @@ function publicPage(title, content) {
 <title>${esc(title)}</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a6fc4'/%3E%3Cpath d='M9 17l4.5 4.5L23 12' stroke='%23fff' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
-  @font-face {
-    font-family: 'Outfit';
-    src: url('/fonts/Outfit-Variable.woff2') format('woff2');
-    font-weight: 300 800;
-    font-display: swap;
-  }
   :root {
     color-scheme: light;
     --page: #f7f6f2; --surface: #fdfdfb; --ink: #1c1b18; --muted: #8f8c83;
@@ -89,7 +85,7 @@ function publicPage(title, content) {
   }
   * { box-sizing: border-box; }
   body {
-    font-family: 'Outfit', 'Segoe UI Variable Display', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+    font-family: 'Segoe UI Variable Display', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
     background: var(--page); color: var(--ink);
     max-width: 480px; margin: 0 auto; padding: 10vh 1.2rem 3rem; line-height: 1.5;
   }
@@ -148,12 +144,6 @@ function landingPage() {
 <title>Máquina de Encuestas</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a6fc4'/%3E%3Cpath d='M9 17l4.5 4.5L23 12' stroke='%23fff' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
-  @font-face {
-    font-family: 'Outfit';
-    src: url('/fonts/Outfit-Variable.woff2') format('woff2');
-    font-weight: 300 800;
-    font-display: swap;
-  }
   :root {
     color-scheme: light;
     --page: #f7f6f2; --surface: #fdfdfb; --raised: #ffffff; --ink: #1c1b18;
@@ -173,7 +163,7 @@ function landingPage() {
   }
   * { box-sizing: border-box; }
   body {
-    font-family: 'Outfit', 'Segoe UI Variable Display', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+    font-family: 'Segoe UI Variable Display', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
     background: var(--page); color: var(--ink); margin: 0; line-height: 1.55;
     min-height: 100dvh; display: grid; place-items: center; padding: 2rem 1.2rem;
   }
@@ -554,7 +544,7 @@ export function createApp(store) {
       // ------- tablero (SPA estática, sin build)
       if (req.method === 'GET' && STATIC[path]) {
         const [file, type] = STATIC[path];
-        res.writeHead(200, { 'content-type': type });
+        res.writeHead(200, { 'content-type': type, 'cache-control': 'no-cache' });
         return res.end(await readFile(join(PUBLIC_DIR, file)));
       }
 

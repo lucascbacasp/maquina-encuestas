@@ -38,6 +38,25 @@ const RATING_CHIP = { insatisfecho: 'crit', bueno: 'warn', excelente: 'good' };
 const ratingPill = (r) =>
   r ? `<span class="rating-pill ${r}"><i class="chip ${RATING_CHIP[r]}"></i>${r}</span>` : '<span class="muted">—</span>';
 
+// Un 401 en cualquier llamada corta el polling y muestra la salida clara —
+// jamás un skeleton infinito.
+let sessionLost = false;
+let pollTimer = null;
+
+function sessionExpired() {
+  if (sessionLost) return;
+  sessionLost = true;
+  clearInterval(pollTimer);
+  configLine.textContent = '';
+  app.innerHTML = `
+    <div class="empty-state">
+      <div class="mark" aria-hidden="true"></div>
+      <h2 style="margin:.2rem 0 .3rem">Tu sesión expiró</h2>
+      <p class="muted">Volvé a ingresar para seguir usando el tablero.</p>
+      <p style="margin-top:1.1rem"><a href="/"><button class="primary">Ingresar de nuevo</button></a></p>
+    </div>`;
+}
+
 function toast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -65,7 +84,7 @@ async function post(url, body) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body || {}),
   });
-  if (res.status === 401) { location.href = '/'; return {}; } // sesión vencida
+  if (res.status === 401) { sessionExpired(); return {}; }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) toast(data.error || 'No se pudo completar la acción.');
   return data;
@@ -430,6 +449,7 @@ function renderCurrent() {
 }
 
 async function refresh(force = false) {
+  if (sessionLost) return;
   // No pisar lo que el usuario está tipeando.
   if (!force && app.contains(document.activeElement) &&
       /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
@@ -437,7 +457,7 @@ async function refresh(force = false) {
   try {
     if (view === 'operacion' || role === null) {
       const res = await fetch('/api/state');
-      if (res.status === 401) { location.href = '/'; return; } // sesión vencida
+      if (res.status === 401) { sessionExpired(); return; }
       const text = await res.text();
       if (force || text !== lastStateText) {
         lastStateText = text;
@@ -453,7 +473,9 @@ async function refresh(force = false) {
     }
     if (view !== 'operacion' && role !== 'operador') {
       const res = await fetch('/api/crm');
+      if (res.status === 401) { sessionExpired(); return; }
       if (res.status === 403) { role = 'operador'; applyRole(); renderCurrent(); return; }
+      if (!res.ok) { toast('No se pudo cargar la vista. Reintentando…'); return; }
       const text = await res.text();
       if (force || text !== lastCrmText) {
         lastCrmText = text;
@@ -519,4 +541,4 @@ app.addEventListener('change', (e) => {
 });
 
 refresh(true);
-setInterval(refresh, 8000);
+pollTimer = setInterval(refresh, 8000);

@@ -337,6 +337,14 @@ test('login: la caja de la landing crea sesión por cookie y respeta roles', asy
   assert.match(out.headers.get('set-cookie'), /Max-Age=0/);
 });
 
+test('cache: HTML y API no-store; assets del tablero revalidan siempre', async () => {
+  assert.equal((await fetch(C + '/')).headers.get('cache-control'), 'no-store');
+  assert.equal((await fetch(`${C}/api/state`)).headers.get('cache-control'), 'no-store');
+  const basic = { authorization: 'Basic ' + Buffer.from('admin:secreta123').toString('base64') };
+  assert.equal((await fetch(`${C}/app`, { headers: basic })).headers.get('cache-control'), 'no-cache');
+  assert.equal((await fetch(`${C}/app.js`)).headers.get('cache-control'), 'no-cache');
+});
+
 // ------------------------------------------------- scheduler (server B)
 
 test('scheduler: diferido → enviada → recordatorio → caso → seguimiento', async () => {
