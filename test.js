@@ -345,6 +345,55 @@ test('cache: HTML y API no-store; assets del tablero revalidan siempre', async (
   assert.equal((await fetch(`${C}/app.js`)).headers.get('cache-control'), 'no-cache');
 });
 
+test('CSAT: el gerente crea la encuesta, obtiene el link y la respuesta mapea', async () => {
+  const basic = (u, p) => ({ authorization: 'Basic ' + Buffer.from(`${u}:${p}`).toString('base64') });
+  const gerente = basic('admin', 'secreta123');
+  const operador = basic('operador', 'op456');
+
+  // Crear encuestas es función del gerente.
+  const denied = await fetch(`${C}/api/surveys`, {
+    method: 'POST', headers: { ...operador, 'content-type': 'application/json' },
+    body: JSON.stringify({ client_name: 'X', format: 'csat' }),
+  });
+  assert.equal(denied.status, 403);
+
+  const created = await fetch(`${C}/api/surveys`, {
+    method: 'POST', headers: { ...gerente, 'content-type': 'application/json' },
+    body: JSON.stringify({ client_name: 'Link Cliente', client_phone: '5491199887766', type: 'post-obra', format: 'csat' }),
+  });
+  assert.equal(created.status, 201);
+  const r = await created.json();
+  assert.match(r.code, /^ENC-\d{4}$/);
+  assert.match(r.survey_url, /\/s\/[a-f0-9]{32}$/);
+  assert.match(r.wa_link, /^https:\/\/wa\.me\/5491199887766/);
+  assert.equal(r.format, 'csat');
+
+  // La página pública muestra la escala 1-5.
+  const page = await (await fetch(r.survey_url)).text();
+  assert.match(page, /satisfecho quedaste/);
+  assert.match(page, /Muy satisfecho/);
+  assert.match(page, /name="score"/);
+
+  // Puntaje inválido: 400. Puntaje 2: registra, mapea a insatisfecho y abre caso.
+  const bad = await fetch(r.survey_url, {
+    method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'score=9',
+  });
+  assert.equal(bad.status, 400);
+  const answer = await fetch(r.survey_url, {
+    method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'score=2',
+  });
+  assert.match(await answer.text(), /Gracias/);
+
+  const crm = await (await fetch(`${C}/api/crm`, { headers: gerente })).json();
+  const s = crm.surveys.find((x) => x.id === r.survey_id);
+  assert.equal(s.format, 'csat');
+  assert.equal(Number(s.score), 2);
+  assert.equal(s.rating, 'insatisfecho');
+  assert.ok(crm.cases.some((k) => k.survey_id === r.survey_id), 'CSAT <= 2 abre caso');
+  // La alerta incluye el puntaje exacto.
+  assert.ok(crm.activity.some((a) => a.kind === 'alert' && a.body.includes('CSAT 2/5')));
+});
+
 // ------------------------------------------------- scheduler (server B)
 
 test('scheduler: diferido → enviada → recordatorio → caso → seguimiento', async () => {

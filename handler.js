@@ -115,16 +115,36 @@ const RATINGS = [
   ['excelente', '🤩 Excelente'],
 ];
 
-const surveyPageHtml = (survey, job) => publicPage('¿Cómo salió el trabajo?', `
-  <h1>¿Cómo salió el trabajo${job.type ? ` de ${esc(job.type)}` : ''}?</h1>
+// Escala CSAT clásica 1-5. El puntaje se guarda exacto y se mapea a los
+// buckets del sistema: 1-2 insatisfecho (alerta + caso), 3 bueno, 4-5 excelente.
+const CSAT = [
+  ['1', '😠 Muy insatisfecho'],
+  ['2', '🙁 Insatisfecho'],
+  ['3', '😐 Neutral'],
+  ['4', '🙂 Satisfecho'],
+  ['5', '🤩 Muy satisfecho'],
+];
+
+export const csatToRating = (score) =>
+  score <= 2 ? 'insatisfecho' : score === 3 ? 'bueno' : 'excelente';
+
+function surveyPageHtml(survey, job) {
+  const isCsat = survey.format === 'csat';
+  const options = isCsat ? CSAT : RATINGS;
+  const field = isCsat ? 'score' : 'rating';
+  return publicPage('¿Cómo salió el trabajo?', `
+  <h1>${isCsat
+    ? `¿Qué tan satisfecho quedaste con el ${job.type ? esc(job.type) : 'servicio'}?`
+    : `¿Cómo salió el trabajo${job.type ? ` de ${esc(job.type)}` : ''}?`}</h1>
   <p class="muted">Un solo toque y listo. Sin registrarse.</p>
   <div class="btns">
-    ${RATINGS.map(([value, label]) => `
+    ${options.map(([value, label]) => `
       <form method="post" action="/s/${esc(survey.token)}">
-        <input type="hidden" name="rating" value="${value}">
+        <input type="hidden" name="${field}" value="${value}">
         <button>${label}</button>
       </form>`).join('')}
   </div>`);
+}
 
 // Excelente -> pedido de reseña pública (growth loop adoptado de BERLIM).
 function thanksPageHtml({ already, rating }) {
@@ -275,7 +295,7 @@ export function createApp(store) {
   const OPERATOR_PASS = process.env.OPERATOR_PASS || '';
   const PUBLIC_ROUTES = /^\/($|s\/[a-f0-9]{32}$|fonts\/|healthz$|app\.js$|style\.css$|api\/login$)/;
   // Vistas globales de empresa: solo gerente (se aplica en el server).
-  const MANAGER_ROUTES = new Set(['/api/crm', '/api/selftest']);
+  const MANAGER_ROUTES = new Set(['/api/crm', '/api/selftest', '/api/surveys']);
 
   // Sesión con cookie firmada (HMAC) — sin dependencias ni tabla de sesiones.
   // Rotar cualquiera de las claves invalida todas las sesiones.
@@ -375,12 +395,15 @@ export function createApp(store) {
   }
 
   // Etapa 4: registrar respuesta. Idempotente: la primera respuesta gana.
-  async function recordResponse(token, rating) {
+  async function recordResponse(token, { rating, score }) {
     const survey = await store.surveyByToken(token);
     if (!survey) return { error: 'not_found' };
     if (survey.status === 'responded') return { survey, already: true };
 
-    await store.updateSurvey(survey.id, { status: 'responded', rating, responded_at: nowIso() });
+    if (survey.format === 'csat') rating = csatToRating(score);
+    await store.updateSurvey(survey.id, {
+      status: 'responded', rating, score: score ?? null, responded_at: nowIso(),
+    });
     const updated = await store.surveyById(survey.id);
 
     // Insatisfecho = alerta inmediata al dueño + caso abierto (recuperación).
@@ -415,6 +438,7 @@ export function createApp(store) {
 
   const brief = (r) => ({
     id: r.id, code: surveyCode(r.id), status: r.status, channel: r.channel, rating: r.rating,
+    format: r.format, score: r.score,
     resend_count: r.resend_count, scheduled_at: r.scheduled_at, sent_at: r.sent_at,
     responded_at: r.responded_at, client_name: r.client_name,
     client_email: r.client_email, client_phone: r.client_phone,
@@ -596,6 +620,48 @@ export function createApp(store) {
         });
       }
 
+      // ------- Creación directa (gerente): encuesta simple o CSAT + link
+      // No pasa por el envío diferido: nace enviada, con el link listo para
+      // compartir. Si hay email, además sale por el canal automático.
+      if (req.method === 'POST' && path === '/api/surveys') {
+        const b = await readBody(req);
+        const clientName = (b.client_name || '').trim();
+        const format = b.format === 'csat' ? 'csat' : 'simple';
+        if (!clientName) return sendJson(res, 400, { error: 'client_name es obligatorio' });
+
+        const client = await upsertClient({ name: clientName, email: b.client_email, phone: b.client_phone });
+        const job = await store.insertJob({
+          ref: `DIR-${Date.now().toString(36).toUpperCase()}`,
+          type: (b.type || '').trim() || null,
+          client_id: client.id,
+        });
+        const channel = channelFor(client);
+        const survey = await store.insertSurvey({
+          job_id: job.id,
+          client_id: client.id,
+          token: newToken(),
+          channel,
+          format,
+          status: 'sent',
+          sent_at: nowIso(),
+        });
+        const msg = surveyMessage(BASE_URL, survey, client, job, 'initial');
+        await deliver(store, {
+          surveyId: survey.id,
+          kind: 'initial',
+          channel: channel ?? 'link',
+          recipient: client.email || (client.phone ? `+${client.phone}` : 'link directo'),
+          ...msg,
+        });
+        return sendJson(res, 201, {
+          survey_id: survey.id,
+          code: surveyCode(survey.id),
+          survey_url: `${BASE_URL}/s/${survey.token}`,
+          format,
+          wa_link: client.phone ? waLink(client.phone, msg.body) : null,
+        });
+      }
+
       // ------- Etapa 1: hook de cierre de trabajo
       if (req.method === 'POST' && path === '/api/jobs/close') {
         const b = await readBody(req);
@@ -728,9 +794,13 @@ export function createApp(store) {
         }
         if (req.method === 'POST') {
           const b = await readBody(req);
-          if (!['insatisfecho', 'bueno', 'excelente'].includes(b.rating))
+          const score = Number(b.score);
+          const valid = survey.format === 'csat'
+            ? Number.isInteger(score) && score >= 1 && score <= 5
+            : ['insatisfecho', 'bueno', 'excelente'].includes(b.rating);
+          if (!valid)
             return sendHtml(res, 400, publicPage('Error', '<p>Respuesta inválida.</p>'));
-          const result = await recordResponse(m[1], b.rating);
+          const result = await recordResponse(m[1], { rating: b.rating, score });
           return sendHtml(res, 200, thanksPageHtml({
             already: result.already,
             rating: result.survey.rating,

@@ -17,13 +17,15 @@ tablero son rutas `#hash` sobre `/app`.
 | `/healthz` | Público | Health check del hosting |
 | `/` | **Público** | Landing: qué es el sistema + caja de login (con sesión activa redirige a `/app`) |
 | `/app` o `/app#operacion` | Operador y gerente | Vista **Operación** |
-| `/app#encuestas` | Solo gerente | Registro CRM completo con filtros y export |
+| `/app#encuestas` | Solo gerente | Crear encuestas (simple/CSAT) con link + registro completo con filtros y export |
+| `/app#encuesta/<id>` | Solo gerente | Detalle de una encuesta: respuesta, puntaje CSAT, caso e historia |
 | `/app#clientes` | Solo gerente | Clientes con agregados |
 | `/app#cliente/<id>` | Solo gerente | Ficha del cliente con línea de tiempo |
 | `/app#resultados` | Solo gerente | Resultados globales de la empresa |
 | `/api/selftest` | Solo gerente | Diagnóstico del deploy (backend, conteos) |
 | `/api/cron?secret=<CRON_SECRET>` | Sistema (cron externo) | Dispara el tick del scheduler |
 | `POST /api/jobs/close` | Operador, gerente o sistema externo | El hook que cierra un trabajo y dispara la encuesta |
+| `POST /api/surveys` | Solo gerente | Crea una encuesta directa (simple o CSAT) y devuelve el link para compartir |
 
 Si el operador escribe a mano una URL de gerente, el servidor responde
 `403` — la restricción vive en el backend, no en el menú.
@@ -61,7 +63,8 @@ Todo lo del operador **más** las vistas de empresa:
 
 | Vista | Función |
 |---|---|
-| **Encuestas** | Registro completo: cada encuesta con ID citable (`ENC-0042`), estado, canal, fechas y resultado. Filtros combinables (estado × tipo × búsqueda) y **export CSV** |
+| **Encuestas** | **Crear encuestas** (formato simple o CSAT 1-5) con link listo para compartir + registro completo: cada encuesta con ID citable (`ENC-0042`), estado, canal, fechas y resultado (con puntaje CSAT). Filtros combinables y **export CSV** |
+| **Detalle de encuesta** | La respuesta de cada encuesta respondida: puntaje exacto, tiempo de respuesta, caso vinculado e historia de envíos |
 | **Clientes** | Agregados por cliente (% respuesta, desglose, badge "en riesgo") y ficha con la línea de tiempo completa: trabajos, envíos, respuestas, casos y notas |
 | **Resultados** | Los números globales de la empresa: % enviadas, % respondidas, % satisfacción, desglose; **corte por tipo de servicio** y **por cliente**; clientes en riesgo |
 | Alertas y seguimientos | Alerta inmediata por cada insatisfecho + recordatorio semanal por caso abierto (en Actividad; por email/WhatsApp al conectar el webhook) |

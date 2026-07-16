@@ -35,8 +35,9 @@ const STATUS_LABEL = {
   sent: 'enviada', responded: 'respondida',
 };
 const RATING_CHIP = { insatisfecho: 'crit', bueno: 'warn', excelente: 'good' };
-const ratingPill = (r) =>
-  r ? `<span class="rating-pill ${r}"><i class="chip ${RATING_CHIP[r]}"></i>${r}</span>` : '<span class="muted">—</span>';
+const ratingPill = (r, score) =>
+  r ? `<span class="rating-pill ${r}"><i class="chip ${RATING_CHIP[r]}"></i>${score ? `CSAT ${score}/5` : r}</span>`
+    : '<span class="muted">—</span>';
 
 // Un 401 en cualquier llamada corta el polling y muestra la salida clara —
 // jamás un skeleton infinito.
@@ -260,11 +261,44 @@ function filteredSurveys() {
   });
 }
 
+let lastCreated = null; // resultado del último "Crear encuesta"
+
+function createSurveySection() {
+  const r = lastCreated;
+  return `
+  <h2>Crear encuesta</h2>
+  <p class="muted">Genera el link para mandarle al cliente por donde quieras.
+  Formato Simple (3 opciones) o CSAT (escala 1 a 5).</p>
+  <form class="close-job card" id="create-survey">
+    <input name="client_name" placeholder="Cliente" required>
+    <input name="client_email" type="email" placeholder="Email (opcional)">
+    <input name="client_phone" type="tel" placeholder="WhatsApp (opcional)">
+    <input name="type" placeholder="Motivo / servicio (opcional)">
+    <select name="format" aria-label="Formato">
+      <option value="simple">Simple — 3 opciones</option>
+      <option value="csat">CSAT — escala 1 a 5</option>
+    </select>
+    <button class="primary">Crear encuesta → obtener link</button>
+  </form>
+  ${r ? `
+  <div class="card" style="border-left:4px solid var(--accent)">
+    <span class="who">${esc(r.code)}</span>
+    <span class="badge">${r.format === 'csat' ? 'CSAT 1-5' : 'simple'}</span>
+    <span class="muted">creada — mandale este link al cliente:</span>
+    <div class="row">
+      <input readonly value="${esc(r.survey_url)}" style="flex:1;min-width:220px" onclick="this.select()">
+      <button data-copy="${esc(r.survey_url)}">Copiar link</button>
+      ${r.wa_link ? `<a class="wa" href="${esc(r.wa_link)}" target="_blank">Enviar por WhatsApp →</a>` : ''}
+    </div>
+  </div>` : ''}`;
+}
+
 function viewEncuestas() {
   if (!crmPayload) return '<p class="muted">Cargando…</p>';
   const types = [...new Set(crmPayload.surveys.map((s) => s.job_type || '(sin tipo)'))].sort();
   const rows = filteredSurveys();
   return `
+  ${createSurveySection()}
   <h2>Registro de encuestas</h2>
   <div class="filters">
     <select id="f-status" aria-label="Estado">
@@ -283,7 +317,7 @@ function viewEncuestas() {
   </div>
   ${rows.length ? `
   <table>
-    <tr><th>ID</th><th>Cliente</th><th>Trabajo</th><th>Tipo</th><th>Canal</th><th>Estado</th><th>Enviada</th><th>Respondida</th><th>Resultado</th></tr>
+    <tr><th>ID</th><th>Cliente</th><th>Trabajo</th><th>Tipo</th><th>Canal</th><th>Estado</th><th>Enviada</th><th>Respondida</th><th>Resultado</th><th></th></tr>
     ${rows.map((s) => `
     <tr class="clickable" data-goto="#cliente/${s.client_id}">
       <td class="code">${esc(s.code)}</td>
@@ -294,10 +328,11 @@ function viewEncuestas() {
       <td><span class="badge">${STATUS_LABEL[s.status]}</span></td>
       <td class="num">${fmt(s.sent_at)}</td>
       <td class="num">${fmt(s.responded_at)}</td>
-      <td>${ratingPill(s.rating)}</td>
+      <td>${ratingPill(s.rating, s.score)}</td>
+      <td><a href="#encuesta/${s.id}" class="code" onclick="event.stopPropagation()">ver →</a></td>
     </tr>`).join('')}
   </table>
-  <p class="muted">Click en una fila para abrir la ficha del cliente.</p>`
+  <p class="muted">Click en la fila abre la ficha del cliente; "ver" abre el detalle de la encuesta.</p>`
   : '<p class="empty">Nada que coincida con los filtros.</p>'}`;
 }
 
@@ -339,7 +374,7 @@ function viewClientes() {
 function clientTimeline(surveys, cases, activity) {
   const ev = [];
   for (const s of surveys) {
-    ev.push({ at: s.closed_at, cls: '', html: `Trabajo <b>${esc(s.job_ref)}</b>${s.job_type ? ` (${esc(s.job_type)})` : ''} cerrado → <span class="code">${esc(s.code)}</span>` });
+    ev.push({ at: s.closed_at, cls: '', html: `Trabajo <b>${esc(s.job_ref)}</b>${s.job_type ? ` (${esc(s.job_type)})` : ''} cerrado → <a class="code" href="#encuesta/${s.id}">${esc(s.code)}</a>` });
     if (s.sent_at) ev.push({ at: s.sent_at, cls: '', html: `<span class="code">${esc(s.code)}</span> enviada por ${s.channel === 'email' ? 'email' : 'WhatsApp'}` });
     if (s.responded_at) ev.push({
       at: s.responded_at,
@@ -381,6 +416,59 @@ function viewCliente(id) {
   </ul>` : '<p class="empty">Sin movimientos todavía.</p>'}`;
 }
 
+// ============================================================ Detalle encuesta
+
+const FORMAT_LABEL = { simple: 'Simple — 3 opciones', csat: 'CSAT — escala 1 a 5' };
+const CSAT_LABEL = { 1: 'Muy insatisfecho', 2: 'Insatisfecho', 3: 'Neutral', 4: 'Satisfecho', 5: 'Muy satisfecho' };
+
+function viewEncuesta(id) {
+  if (!crmPayload) return '<p class="muted">Cargando…</p>';
+  const s = crmPayload.surveys.find((x) => x.id === id);
+  if (!s) return '<p class="empty">Encuesta no encontrada.</p>';
+  const kase = crmPayload.cases.find((k) => k.survey_id === id);
+  const activity = crmPayload.activity.filter((a) => a.survey_id === id);
+
+  const responseTime = s.sent_at && s.responded_at
+    ? Math.round((new Date(s.responded_at) - new Date(s.sent_at)) / 3_600_000 * 10) / 10
+    : null;
+
+  return `
+  <a class="back-link" href="#encuestas">← Encuestas</a>
+  <h2>${esc(s.code)} <span class="badge">${FORMAT_LABEL[s.format] || s.format}</span>
+    <span class="badge">${STATUS_LABEL[s.status]}</span></h2>
+  <p class="muted"><a class="who" href="#cliente/${s.client_id}">${esc(s.client_name)}</a>
+    · trabajo ${esc(s.job_ref)}${s.job_type ? ` · ${esc(s.job_type)}` : ''} · ${contact(s)} ${channelBadge(s.channel)}</p>
+
+  ${s.status === 'responded' ? `
+  <div class="tiles">
+    <div class="tile ${s.rating === 'insatisfecho' ? 'crit' : ''}">
+      <b>${s.score ? `${s.score}/5` : { insatisfecho: '😞', bueno: '🙂', excelente: '🤩' }[s.rating]}</b>
+      <small>${s.score ? `${CSAT_LABEL[s.score]} (${s.rating})` : s.rating}</small>
+    </div>
+    <div class="tile"><b>${fmt(s.responded_at)}</b><small>respondida</small></div>
+    ${responseTime !== null ? `<div class="tile"><b>${responseTime} h</b><small>tiempo de respuesta desde el envío</small></div>` : ''}
+  </div>` : `
+  <div class="card"><span class="muted">Todavía sin respuesta.
+    ${s.status === 'sent' ? `Enviada ${fmt(s.sent_at)}${s.resend_count ? ' · reenviada 1 vez' : ''}.` : ''}</span></div>`}
+
+  ${kase ? `
+  <h2>Caso vinculado</h2>
+  <div class="card ${kase.status === 'resuelto' ? 'case-resolved' : 'case-open'}">
+    <span class="badge">${esc(kase.status.replace('_', ' '))}</span>
+    <span class="muted">abierto ${fmt(kase.opened_at)}${kase.resolved_at ? ` · resuelto ${fmt(kase.resolved_at)}` : ''}</span>
+    ${kase.notes ? `<div class="muted" style="margin-top:.4rem">Notas: ${esc(kase.notes)}</div>` : ''}
+  </div>` : ''}
+
+  <h2>Historia de esta encuesta</h2>
+  ${activity.length ? `<ul class="timeline">
+    ${activity.map((a) => `<li class="${a.kind === 'alert' ? 'ev-crit' : a.kind === 'resolution' ? 'ev-good' : ''}">
+      ${esc({ initial: 'Encuesta enviada', reminder: 'Recordatorio enviado', alert: 'Alerta al dueño', followup: 'Seguimiento al dueño', resolution: 'Agradecimiento post-resolución' }[a.kind] || a.kind)}
+      <span class="muted">(${esc(a.channel)} → ${esc(a.recipient)})</span><br>
+      <span class="when">${fmt(a.created_at)}</span>
+    </li>`).join('')}
+  </ul>` : '<p class="empty">Sin envíos registrados.</p>'}`;
+}
+
 // ================================================================ Resultados
 
 function resultTable(title, rows, nameCol, nameKey, linkable) {
@@ -417,6 +505,8 @@ const routes = () => {
   const h = location.hash || '#operacion';
   const m = h.match(/^#cliente\/(\d+)$/);
   if (m) return { view: 'cliente', id: Number(m[1]), tab: '#clientes' };
+  const e = h.match(/^#encuesta\/(\d+)$/);
+  if (e) return { view: 'encuesta', id: Number(e[1]), tab: '#encuestas' };
   if (['#operacion', '#encuestas', '#clientes', '#resultados'].includes(h)) return { view: h.slice(1), tab: h };
   return { view: 'operacion', tab: '#operacion' };
 };
@@ -445,6 +535,7 @@ function renderCurrent() {
     : r.view === 'encuestas' ? viewEncuestas()
     : r.view === 'clientes' ? viewClientes()
     : r.view === 'cliente' ? viewCliente(r.id)
+    : r.view === 'encuesta' ? viewEncuesta(r.id)
     : viewResultados();
 }
 
@@ -499,6 +590,13 @@ app.addEventListener('submit', async (e) => {
   if (form.id === 'close-job') {
     const r = await post('/api/jobs/close', data);
     if (r.survey_url) form.reset();
+  } else if (form.id === 'create-survey') {
+    const r = await post('/api/surveys', data);
+    if (r.survey_url) {
+      lastCreated = r;
+      form.reset();
+      toast(`${r.code} creada — copiá el link y mandáselo al cliente.`);
+    }
   } else if (form.dataset.contact) {
     await post(`/api/surveys/${form.dataset.contact}/contact`, data);
   }
@@ -513,6 +611,15 @@ app.addEventListener('click', async (e) => {
   if (!btn) return;
 
   if (btn.id === 'csv') return exportCsv();
+  if (btn.dataset.copy) {
+    try {
+      await navigator.clipboard.writeText(btn.dataset.copy);
+      toast('Link copiado.');
+    } catch {
+      toast('No se pudo copiar: seleccioná el link y copialo a mano.');
+    }
+    return;
+  }
   if (btn.dataset.resend) {
     await post(`/api/surveys/${btn.dataset.resend}/resend`);
     refresh(true);

@@ -36,6 +36,24 @@ para referenciarla en una llamada o un chat.
 Usos típicos: *"¿le mandamos algo a García?"* → buscá "García".
 *"¿Qué pasó con la ENC-0031?"* → buscá el ID.
 
+**Crear una encuesta y mandar el link** (arriba de todo en esta vista):
+
+1. Completá el cliente (email/WhatsApp opcionales; si ya existe, usa el
+   contacto guardado) y el motivo.
+2. Elegí el formato: **Simple** (3 opciones, un tap) o **CSAT** (escala
+   1 a 5: Muy insatisfecho → Muy satisfecho).
+3. **Crear encuesta → obtener link**: te devuelve el link listo para
+   copiar y mandar por donde quieras (y el botón de WhatsApp si cargaste
+   teléfono). Si hay email, además sale por el canal automático.
+4. Los puntajes CSAT alimentan las mismas métricas: 1-2 cuenta como
+   insatisfecho (dispara alerta y caso), 3 bueno, 4-5 excelente — y el
+   puntaje exacto queda guardado.
+
+**Ver la respuesta de una encuesta**: en el registro, el link **ver →**
+de cada fila abre el detalle: puntaje exacto (ej: CSAT 2/5), fecha y
+tiempo de respuesta, el caso vinculado con sus notas, y la historia
+completa de envíos de esa encuesta.
+
 ### Clientes — el contexto de cada uno
 
 - Lista con agregados: cuántas encuestas, % de respuesta, desglose de

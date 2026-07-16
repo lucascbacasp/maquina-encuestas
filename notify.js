@@ -70,7 +70,7 @@ export function alertMessage(survey, client, job) {
   return {
     subject: `⚠ Cliente insatisfecho: ${client.name}`,
     body:
-      `${client.name} respondió INSATISFECHO por el trabajo ${job.ref}` +
+      `${client.name} respondió INSATISFECHO${survey.score ? ` (CSAT ${survey.score}/5)` : ''} por el trabajo ${job.ref}` +
       `${job.type ? ` (${job.type})` : ''}.\n` +
       `Contacto: ${client.email || client.phone || 'sin datos'}\n` +
       `Respondió: ${survey.responded_at}\n\n` +

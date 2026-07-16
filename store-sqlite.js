@@ -37,6 +37,8 @@ const SCHEMA = `
     status       TEXT NOT NULL DEFAULT 'pending_contact'
                  CHECK (status IN ('pending_contact','scheduled','ready','sent','responded')),
     rating       TEXT CHECK (rating IN ('insatisfecho','bueno','excelente')),
+    format       TEXT NOT NULL DEFAULT 'simple' CHECK (format IN ('simple','csat')),
+    score        INTEGER CHECK (score BETWEEN 1 AND 5),
     resend_count INTEGER NOT NULL DEFAULT 0,
     scheduled_at TEXT,
     sent_at      TEXT,

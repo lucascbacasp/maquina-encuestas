@@ -27,13 +27,16 @@ const DATA = [
   ['T-1012', 'limpieza',     'Beto Ruiz',         null,                   '5491133445566',  1, 'ready',     null],
   ['T-1013', 'plomería',     'Carla Paz',         null,                   null,             1, 'pending',   null],
   ['T-1014', 'pintura',      'Ana García',        null,                   null,             0, 'sent',      null],
+  // Encuestas CSAT creadas por el gerente (link directo, escala 1-5).
+  ['DIR-C1', 'post-obra',    'Estudio Ferreyra',  null,                   null,             3, 'responded', 'excelente', 'csat', 5],
+  ['DIR-C2', 'post-obra',    'Hugo Almada',       null,                   null,             2, 'responded', 'insatisfecho', 'csat', 2],
 ];
 
 export async function seedDemo(store) {
   let caseNum = 0;
   let count = 0;
 
-  for (const [ref, type, name, email, phone, days, state, rating] of DATA) {
+  for (const [ref, type, name, email, phone, days, state, rating, format = 'simple', score = null] of DATA) {
     let client = await store.clientByName(name);
     if (!client) {
       client = await store.insertClient({ name, email, phone, created_at: iso(days) });
@@ -56,6 +59,8 @@ export async function seedDemo(store) {
       channel,
       status: state === 'pending' ? 'pending_contact' : state,
       rating,
+      format,
+      score,
       scheduled_at: channel ? iso(days) : null,
       sent_at: wasSent ? iso(days, 45 * 60_000) : null,
       responded_at: state === 'responded' ? iso(Math.max(days - 1, 0)) : null,
