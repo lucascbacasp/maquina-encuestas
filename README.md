@@ -178,7 +178,7 @@ notify.js          outbox + webhooks + links wa.me + textos de mensajes
 seed.js            datos de demo (npm run seed / DEMO_SEED=1)
 server.js          runner local/VPS (proceso persistente + scheduler)
 api/index.js       entry point serverless (Vercel)
-public/            tablero (SPA vanilla, sin build)
+ui/                tablero (SPA vanilla, sin build)
 test.js            tests end-to-end contra el server real
 docs/              journeys, comparación BERLIM, planes, capturas
 ```

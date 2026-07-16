@@ -19,7 +19,10 @@ import {
 } from './util.js';
 import { seedDemo } from './seed.js';
 
-const PUBLIC_DIR = join(import.meta.dirname, 'public');
+// OJO: la carpeta se llama ui/ (no public/) a propósito — Vercel sirve un
+// public/ raíz como estáticos en '/', pisando las rutas de la función
+// (nos tapó la landing en producción). Todo asset pasa por el handler.
+const PUBLIC_DIR = join(import.meta.dirname, 'ui');
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) =>
@@ -548,7 +551,7 @@ export function createApp(store) {
         return res.end(await readFile(join(PUBLIC_DIR, file)));
       }
 
-      // Fuentes self-hosteadas (opcional: soltar los .woff2 en public/fonts/).
+      // Fuentes self-hosteadas (opcional: soltar los .woff2 en ui/fonts/).
       const fontMatch = path.match(/^\/fonts\/([\w-]+\.woff2)$/);
       if (req.method === 'GET' && fontMatch) {
         try {
