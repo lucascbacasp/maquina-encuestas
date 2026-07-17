@@ -107,7 +107,7 @@ test('cierre duplicado devuelve 409', async () => {
   assert.equal((await closeJob(A, { ref: 'A-1', client_name: 'Ana' })).status, 409);
 });
 
-test('whatsapp sin gateway: queda ready y /wa marca + redirige a wa.me', async () => {
+test('whatsapp sin gateway: queda ready; el POST marca y devuelve wa.me', async () => {
   const res = await closeJob(A, { ref: 'A-2', client_name: 'Beto', client_phone: '+54 9 11 2233-4455' });
   const body = await res.json();
   assert.equal(body.channel, 'whatsapp');
@@ -117,18 +117,38 @@ test('whatsapp sin gateway: queda ready y /wa marca + redirige a wa.me', async (
   const item = s.ready.find((r) => r.job_ref === 'A-2');
   assert.equal(item.client_phone, '5491122334455');
 
-  // Tap inicial: 302 a wa.me con el mensaje y el link de la encuesta.
-  const tap = await fetch(`${A}/wa/${item.id}`, { redirect: 'manual' });
-  assert.equal(tap.status, 302);
-  const loc = tap.headers.get('location');
-  assert.match(loc, /^https:\/\/wa\.me\/5491122334455\?text=/);
-  assert.match(decodeURIComponent(loc), /\/s\/[a-f0-9]{32}/);
+  // El GET /wa ya no existe (marcaba "enviada" ante cualquier prefetch).
+  assert.equal((await fetch(`${A}/wa/${item.id}`)).status, 404);
+  const still = await state(A);
+  assert.ok(still.ready.some((r) => r.id === item.id), 'un GET no debe marcar nada');
 
-  // Quedó enviada; segundo tap = recordatorio; tercero = límite.
-  const tap2 = await fetch(`${A}/wa/${item.id}`, { redirect: 'manual' });
-  assert.equal(tap2.status, 302);
-  const tap3 = await fetch(`${A}/wa/${item.id}`, { redirect: 'manual' });
+  // Tap real = POST: marca y devuelve el link wa.me con la encuesta.
+  const tap = await post(A, `/api/surveys/${item.id}/wa`);
+  assert.equal(tap.status, 200);
+  const { wa_link } = await tap.json();
+  assert.match(wa_link, /^https:\/\/wa\.me\/5491122334455\?text=/);
+  assert.match(decodeURIComponent(wa_link), /\/s\/[a-f0-9]{32}/);
+
+  // Quedó enviada; segundo POST = recordatorio; tercero = límite.
+  const tap2 = await post(A, `/api/surveys/${item.id}/wa`);
+  assert.equal(tap2.status, 200);
+  const tap3 = await post(A, `/api/surveys/${item.id}/wa`);
   assert.equal(tap3.status, 409);
+});
+
+test('encuesta pública: token inválido muestra página amigable, nunca JSON de auth', async () => {
+  for (const p of ['/s/idquenoexiste12345', '/s/x', '/s/' + 'a'.repeat(32)]) {
+    const res = await fetch(A + p);
+    assert.equal(res.status, 404, p);
+    assert.match(res.headers.get('content-type'), /text\/html/, p);
+    const html = await res.text();
+    assert.match(html, /[Nn]o encontramos esta encuesta|no encontrada/i, p);
+    assert.doesNotMatch(html, /autenticación requerida/, p);
+  }
+  // También con auth activada (server C) el link roto es página pública amigable.
+  const resC = await fetch(`${C}/s/idquenoexiste12345`);
+  assert.equal(resC.status, 404);
+  assert.match(resC.headers.get('content-type'), /text\/html/);
 });
 
 test('respuesta excelente muestra CTA de reseña de Google', async () => {

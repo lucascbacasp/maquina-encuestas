@@ -130,7 +130,9 @@ function casesSection(cases) {
   const resolved = cases.filter((k) => k.status === 'resuelto').slice(0, 5);
   const card = (k) => `
     <div class="card ${k.status === 'resuelto' ? 'case-resolved' : 'case-open'}">
-      <a class="who" href="#cliente/${k.client_id}">${esc(k.client_name)}</a>
+      ${role === 'operador'
+        ? `<span class="who">${esc(k.client_name)}</span>`
+        : `<a class="who" href="#cliente/${k.client_id}">${esc(k.client_name)}</a>`}
       <span class="badge">${esc(k.status.replace('_', ' '))}</span>
       <span class="muted">trabajo ${esc(k.job_ref)}${k.job_type ? ` · ${esc(k.job_type)}` : ''}
         · respondió ${fmt(k.responded_at)} · ${contact(k)}</span>
@@ -158,7 +160,7 @@ function readySection(ready) {
       <span class="who">${esc(r.client_name)}</span> ${channelBadge(r.channel)}
       <span class="code">${esc(r.code)}</span>
       <span class="muted">trabajo ${esc(r.job_ref)} · +${esc(r.client_phone)}</span>
-      <div class="row"><a class="wa" href="/wa/${r.id}" target="_blank" data-refresh>Enviar por WhatsApp →</a></div>
+      <div class="row"><button class="wa" data-wa="${r.id}">Enviar por WhatsApp →</button></div>
     </div>`).join('')}`;
 }
 
@@ -191,7 +193,7 @@ function unansweredSection(unanswered, cfg) {
         ? '<span class="muted">reenviada (límite: 1)</span>'
         : r.can_auto
           ? `<button data-resend="${r.id}">Reenviar</button>`
-          : `<a class="wa" href="/wa/${r.id}" target="_blank" data-refresh>Reenviar por WhatsApp →</a>`
+          : `<button class="wa" data-wa="${r.id}">Reenviar por WhatsApp →</button>`
       }</td></tr>`).join('')}</table>`;
 }
 
@@ -583,24 +585,53 @@ window.addEventListener('hashchange', () => { refresh(true); renderCurrent(); })
 
 // ------------------------------------------------------------- acciones
 
+const STATUS_TOAST = {
+  sent: 'encuesta enviada',
+  scheduled: 'encuesta programada (envío diferido)',
+  ready: 'encuesta lista en la cola de WhatsApp',
+  pending_contact: 'encuesta creada — falta el contacto del cliente',
+};
+
 app.addEventListener('submit', async (e) => {
   e.preventDefault();
   const form = e.target;
   const data = Object.fromEntries(new FormData(form));
-  if (form.id === 'close-job') {
-    const r = await post('/api/jobs/close', data);
-    if (r.survey_url) form.reset();
-  } else if (form.id === 'create-survey') {
-    const r = await post('/api/surveys', data);
-    if (r.survey_url) {
-      lastCreated = r;
-      form.reset();
-      toast(`${r.code} creada — copiá el link y mandáselo al cliente.`);
+
+  // Un solo envío por vez, con estado visible (hallazgo de QA: sin
+  // feedback, el primer clic parecía no registrarse).
+  const submitBtn = form.querySelector('button:not([type="button"])');
+  if (submitBtn?.disabled) return;
+  const prevLabel = submitBtn?.textContent;
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Procesando…'; }
+
+  try {
+    if (form.id === 'close-job') {
+      if (!data.ref?.trim() || !data.client_name?.trim())
+        return toast('Completá el número de trabajo y el nombre del cliente.');
+      const r = await post('/api/jobs/close', data);
+      if (r.survey_url) {
+        form.reset();
+        toast(`Trabajo ${data.ref.trim()} cerrado — ${STATUS_TOAST[r.status] || 'encuesta creada'}.`);
+      }
+    } else if (form.id === 'create-survey') {
+      if (!data.client_name?.trim())
+        return toast('Completá el nombre del cliente.');
+      const r = await post('/api/surveys', data);
+      if (r.survey_url) {
+        lastCreated = r;
+        form.reset();
+        toast(`${r.code} creada — copiá el link y mandáselo al cliente.`);
+      }
+    } else if (form.dataset.contact) {
+      if (!data.email?.trim() && !data.phone?.trim())
+        return toast('Cargá un email o un WhatsApp.');
+      const r = await post(`/api/surveys/${form.dataset.contact}/contact`, data);
+      if (r.status) toast('Contacto guardado — ' + (STATUS_TOAST[r.status] || 'encuesta en curso') + '.');
     }
-  } else if (form.dataset.contact) {
-    await post(`/api/surveys/${form.dataset.contact}/contact`, data);
+    refresh(true);
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = prevLabel; }
   }
-  refresh(true);
 });
 
 app.addEventListener('click', async (e) => {
@@ -620,16 +651,33 @@ app.addEventListener('click', async (e) => {
     }
     return;
   }
-  if (btn.dataset.resend) {
+  if (btn.dataset.wa) {
+    // Pestaña abierta sincrónicamente (los popups post-await se bloquean);
+    // el servidor marca el envío recién en este POST, no en un GET.
+    const w = window.open('', '_blank');
+    const r = await post(`/api/surveys/${btn.dataset.wa}/wa`);
+    if (r.wa_link) {
+      if (w) w.location = r.wa_link;
+      toast('Marcada como enviada — completá el envío en WhatsApp.');
+    } else {
+      w?.close();
+    }
+    refresh(true);
+  } else if (btn.dataset.resend) {
     await post(`/api/surveys/${btn.dataset.resend}/resend`);
     refresh(true);
   } else if (btn.dataset.case) {
+    // Confirmación antes de resolver: un caso resuelto dispara el
+    // agradecimiento al cliente y sale de la lista (hallazgo de QA:
+    // el reordenamiento provocaba clics sobre el caso equivocado).
+    if (btn.dataset.status === 'resuelto') {
+      const who = btn.closest('.card')?.querySelector('.who')?.textContent || 'este cliente';
+      if (!confirm(`¿Marcar resuelto el caso de ${who}? Se le enviará el agradecimiento.`)) return;
+    }
     const notes = document.querySelector(`[data-case-notes="${btn.dataset.case}"]`)?.value;
     const r = await post(`/api/cases/${btn.dataset.case}`, { status: btn.dataset.status, notes });
     if (r.wa_link) window.open(r.wa_link, '_blank');
     refresh(true);
-  } else if (btn.dataset.refresh !== undefined) {
-    setTimeout(() => refresh(true), 800); // el /wa/:id marca enviada al abrirse
   }
 });
 

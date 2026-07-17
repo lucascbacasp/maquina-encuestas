@@ -260,6 +260,10 @@ document.getElementById('login').addEventListener('submit', async (e) => {
   const err = document.getElementById('error');
   err.textContent = '';
   const data = Object.fromEntries(new FormData(e.target));
+  if (!data.user?.trim() || !data.pass) {
+    err.textContent = 'Completá usuario y clave.';
+    return;
+  }
   const res = await fetch('/api/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -293,7 +297,7 @@ export function createApp(store) {
   const ADMIN_PASS = process.env.ADMIN_PASS || '';
   const OPERATOR_USER = process.env.OPERATOR_USER || 'operador';
   const OPERATOR_PASS = process.env.OPERATOR_PASS || '';
-  const PUBLIC_ROUTES = /^\/($|s\/[a-f0-9]{32}$|fonts\/|healthz$|app\.js$|style\.css$|api\/login$)/;
+  const PUBLIC_ROUTES = /^\/($|s\/|fonts\/|healthz$|app\.js$|style\.css$|api\/login$)/;
   // Vistas globales de empresa: solo gerente (se aplica en el server).
   const MANAGER_ROUTES = new Set(['/api/crm', '/api/selftest', '/api/surveys']);
 
@@ -711,23 +715,26 @@ export function createApp(store) {
         return sendJson(res, 200, { status: s.status, channel: s.channel });
       }
 
-      // ------- WhatsApp tap-to-send: marca y redirige a wa.me (sin API de Meta)
-      m = path.match(/^\/wa\/(\d+)$/);
-      if (req.method === 'GET' && m) {
+      // ------- WhatsApp tap-to-send (sin API de Meta). Es un POST a propósito:
+      // un GET con efecto secundario marcaba "enviada" ante cualquier prefetch
+      // o escáner de links (hallazgo de QA). El frontend hace el POST y abre
+      // el wa.me que devuelve.
+      m = path.match(/^\/api\/surveys\/(\d+)\/wa$/);
+      if (req.method === 'POST' && m) {
         const survey = await store.surveyById(Number(m[1]));
         if (!survey || survey.channel !== 'whatsapp')
-          return sendHtml(res, 404, publicPage('Error', '<p>Encuesta no encontrada.</p>'));
+          return sendJson(res, 404, { error: 'encuesta no encontrada' });
         if (survey.status === 'ready') {
           const link = await surveyWaLink(survey, 'initial');
           await sendSurvey(survey, 'initial');
-          return redirect(res, link);
+          return sendJson(res, 200, { wa_link: link });
         }
         if (survey.status === 'sent' && survey.resend_count === 0) {
           const link = await surveyWaLink(survey, 'reminder');
           await sendSurvey(survey, 'reminder');
-          return redirect(res, link);
+          return sendJson(res, 200, { wa_link: link });
         }
-        return sendHtml(res, 409, publicPage('Límite', '<p>Esta encuesta ya se envió (máximo 1 reenvío).</p>'));
+        return sendJson(res, 409, { error: 'esta encuesta ya se envió (máximo 1 reenvío)' });
       }
 
       // ------- Reenvío manual por canal automático (máximo 1)
@@ -806,6 +813,14 @@ export function createApp(store) {
             rating: result.survey.rating,
           }));
         }
+      }
+
+      // Cualquier /s/... que no matcheó arriba: link roto o incompleto.
+      if (path.startsWith('/s/')) {
+        return sendHtml(res, 404, publicPage('Encuesta no encontrada', `
+          <h1>No encontramos esta encuesta</h1>
+          <p class="muted">El link puede estar incompleto o haber llegado cortado.
+          Probá abrirlo de nuevo desde el mensaje original, o pedí que te lo reenvíen.</p>`));
       }
 
       sendJson(res, 404, { error: 'no encontrado' });
