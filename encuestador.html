@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ENCUESTADOR</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a6fc4'/%3E%3Cpath d='M9 17l4.5 4.5L23 12' stroke='%23fff' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: light;
+      --page:      #f7f6f2;
+      --surface:   #fdfdfb;
+      --raised:    #ffffff;
+      --ink:       #1c1b18;
+      --ink-2:     #5f5c55;
+      --muted:     #8f8c83;
+      --hairline:  #e7e5de;
+      --accent:    #2a6fc4;
+      --accent-ink: #ffffff;
+      --accent-wash: rgba(42, 111, 196, 0.09);
+      --shadow: 0 1px 2px rgba(28, 27, 24, 0.04), 0 10px 28px -14px rgba(28, 27, 24, 0.10);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --page:      #131311;
+        --surface:   #1b1b18;
+        --raised:    #21211e;
+        --ink:       #f4f3ef;
+        --ink-2:     #b8b5ac;
+        --muted:     #8f8c83;
+        --hairline:  #2b2b27;
+        --accent:    #5b96e0;
+        --accent-ink: #10131a;
+        --accent-wash: rgba(91, 150, 224, 0.14);
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 12px 32px -16px rgba(0, 0, 0, 0.45);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI Variable Display', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+      background: var(--page);
+      color: var(--ink);
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .card {
+      width: 100%;
+      max-width: 680px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 2.25rem 1.75rem;
+      text-align: center;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 .35rem;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: .9rem;
+      margin: 0 0 1.75rem;
+    }
+    .options {
+      display: flex;
+      flex-direction: row;
+      gap: .75rem;
+    }
+    .role-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: .35rem;
+      flex: 1;
+      min-width: 0;
+      padding: 1.1rem .9rem;
+      border-radius: 12px;
+      border: 1px solid var(--hairline);
+      background: var(--raised);
+      color: var(--ink);
+      font-size: .98rem;
+      font-weight: 600;
+      letter-spacing: .01em;
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    }
+    @media (max-width: 560px) {
+      .options { flex-direction: column; }
+    }
+    .role-btn:hover {
+      border-color: var(--accent);
+      background: var(--accent-wash);
+      transform: translateY(-1px);
+    }
+    .role-btn.primary {
+      background: var(--accent);
+      color: var(--accent-ink);
+      border-color: var(--accent);
+    }
+    .role-btn.primary:hover {
+      opacity: .92;
+      background: var(--accent);
+    }
+    .role-btn[disabled] {
+      cursor: not-allowed;
+      opacity: .5;
+    }
+    .role-btn[disabled]:hover {
+      transform: none;
+      border-color: var(--hairline);
+      background: var(--raised);
+    }
+    .tag {
+      font-size: .68rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>ENCUESTADOR</h1>
+    <p class="sub">Elegí cómo querés ingresar</p>
+    <div class="options">
+      <a class="role-btn primary" href="https://maquina-encuestas.vercel.app/app#operacion">ADMINISTRADOR</a>
+      <a class="role-btn" href="https://claude.ai/code/artifact/1fa11dd1-c15f-4ae0-ab26-d1052bdfa308">GESTOR DE CASOS</a>
+      <button class="role-btn" type="button" disabled title="Todavía no tiene proceso asignado">
+        OPERADOR <span class="tag">próximamente</span>
+      </button>
+    </div>
+  </div>
+</body>
+</html>
