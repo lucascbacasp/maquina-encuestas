@@ -633,52 +633,38 @@
       }
       wrap.innerHTML = `
       <table>
-        <tr><th>ID</th><th>Cliente</th><th>Trabajo</th><th>Tipo</th><th>Canal</th><th>Estado</th><th>Enviada</th><th>Respondida</th><th>Resultado</th><th></th></tr>
+        <tr><th>ID</th><th>Cliente</th><th>Trabajo</th><th>Tipo</th><th>Template</th><th>Canal</th><th>Estado</th><th>Enviada</th><th>Respondida</th><th>Sentiment</th></tr>
         ${rows.map((s) => `
         <tr class="clickable" data-code="${s.code}">
           <td class="code">${s.code}</td>
           <td>${s.cliente}</td>
           <td class="code">${s.job_ref}</td>
           <td>${s.job_type || '—'}</td>
+          <td>${s.templateNombre || '—'}</td>
           <td>${channelBadge(s.channel)}</td>
           <td><span class="badge">${REG_STATUS_LABEL[s.estado]}</span></td>
           <td class="num">${s.sent_at || '—'}</td>
           <td class="num">${s.responded_at || '—'}</td>
-          <td>${ratingPill(s)}</td>
-          <td><a href="#" class="code" data-ver="${s.code}" onclick="event.stopPropagation();return false">ver →</a></td>
+          <td>${sentimentPill(surveySentiment(s))}</td>
         </tr>`).join('')}
       </table>
-      <p class="muted">Click en la fila (o en "ver") abre el detalle de la encuesta y su resultado.</p>`;
+      <p class="muted">Click en la fila abre el detalle de la encuesta y su resultado.</p>`;
       wrap.querySelectorAll('tr.clickable').forEach((tr) => {
         tr.addEventListener('click', () => renderEncuestaDetalle(tr.dataset.code));
       });
-      wrap.querySelectorAll('[data-ver]').forEach((a) => {
-        a.addEventListener('click', () => renderEncuestaDetalle(a.dataset.ver));
-      });
-    }
-
-    function surveyAnswersSummary(s) {
-      if (s.estado !== 'responded') return [];
-      if (s.rating === 'csat' && s.score != null) {
-        return [{ q: '¿Cómo calificarías la atención recibida?', a: `${s.score} / 5` }];
-      }
-      if (s.rating) {
-        const label = { insatisfecho: 'Insatisfecho', bueno: 'Bueno', excelente: 'Excelente' }[s.rating] || s.rating;
-        return [{ q: '¿Cómo fue tu experiencia con el servicio?', a: label }];
-      }
-      return [];
     }
 
     function renderEncuestaDetalle(code) {
       const s = surveys.find((x) => x.code === code);
       if (!s) return;
       const wrap = document.getElementById('surveys-table-wrap');
-      const answers = surveyAnswersSummary(s);
+      const sentiment = surveySentiment(s);
       wrap.innerHTML = `
         <button type="button" class="ghost" id="encuesta-volver">← Volver a Encuestas</button>
         <div class="card" style="border-left:4px solid var(--accent);margin-top:.6rem">
           <span class="who">${s.code}</span> · <span class="who">${s.cliente}</span>
           <span class="muted">trabajo ${s.job_ref}${s.job_type ? ' · ' + s.job_type : ''} · ${channelBadge(s.channel)}</span>
+          <p class="muted" style="margin:.3rem 0 0">Template: ${s.templateNombre || '—'}</p>
 
           <div class="row">
             <span class="badge">${REG_STATUS_LABEL[s.estado]}</span>
@@ -686,14 +672,15 @@
             ${s.responded_at ? `<span class="muted">· respondida ${s.responded_at}</span>` : ''}
           </div>
 
-          <label class="field-label" style="margin-top:1.1rem">Resultado</label>
+          <label class="field-label" style="margin-top:1.1rem">Sentiment</label>
           ${s.estado === 'responded' ? `
-            <div class="row">${ratingPill(s)}</div>
-            ${answers.length ? answers.map((a) => `
+            <div class="row">${sentimentPill(sentiment)}</div>
+            <label class="field-label" style="margin-top:1rem">Encuesta respondida</label>
+            ${(s.respuestas || []).map((a) => `
               <div class="question-item">
                 <div class="muted">${a.q}</div>
                 <div style="margin-top:.3rem;font-weight:600">${a.a}</div>
-              </div>`).join('') : ''}
+              </div>`).join('')}
           ` : '<p class="empty">Todavía no respondió esta encuesta.</p>'}
         </div>`;
       document.getElementById('encuesta-volver').addEventListener('click', (e) => {
@@ -705,12 +692,16 @@
     function exportSurveysCsv() {
       const cols = [
         { key: 'code', label: 'id' }, { key: 'cliente', label: 'cliente' }, { key: 'job_ref', label: 'trabajo' },
-        { key: 'job_type', label: 'tipo' }, { key: 'channel', label: 'canal' }, { key: 'estado', label: 'estado' },
-        { key: 'sent_at', label: 'enviada' }, { key: 'responded_at', label: 'respondida' },
+        { key: 'job_type', label: 'tipo' }, { key: 'templateNombre', label: 'template' }, { key: 'channel', label: 'canal' }, { key: 'estado', label: 'estado' },
+        { key: 'sent_at', label: 'enviada' }, { key: 'responded_at', label: 'respondida' }, { key: 'sentiment', label: 'sentiment' },
       ];
       const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const lines = [cols.map((c) => c.label).join(',')];
-      filteredSurveys().forEach((s) => lines.push(cols.map((c) => cell(c.key === 'estado' ? REG_STATUS_LABEL[s.estado] : s[c.key])).join(',')));
+      filteredSurveys().forEach((s) => lines.push(cols.map((c) => cell(
+        c.key === 'estado' ? REG_STATUS_LABEL[s.estado] :
+        c.key === 'sentiment' ? (surveySentiment(s) || '').toUpperCase() :
+        s[c.key]
+      )).join(',')));
       downloadBlob(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'encuestas.csv');
       showToast('CSV descargado');
     }
@@ -858,6 +849,64 @@
     ];
     const QUESTION_TYPES = ['escala 0–10', 'escala 1–5', 'sí / no', 'texto abierto'];
 
+    // Templates de ejemplo (vista previa) — se suman a los que arme el usuario.
+    [
+      { nombre: 'NPS General', tipoEncuesta: 'nps', tipoServicio: '' },
+      { nombre: 'NPS Post-Pintura', tipoEncuesta: 'nps', tipoServicio: 'pintura' },
+      { nombre: 'Resolución de Caso - Plomería', tipoEncuesta: 'resolucion', tipoServicio: 'plomería' },
+      { nombre: 'Resolución de Caso - Electricidad', tipoEncuesta: 'resolucion', tipoServicio: 'electricidad' },
+    ].forEach((t) => {
+      templates.push({ ...t, preguntas: (t.tipoEncuesta === 'nps' ? NPS_QUESTIONS : RESOLUCION_QUESTIONS).map((q) => ({ ...q })) });
+    });
+
+    const OPEN_TEXT_BY_SENTIMENT = {
+      detractor: ['No cumplió mis expectativas.', 'Hubo demoras y faltó comunicación.', 'Esperaba más por lo que pagué.'],
+      neutro: ['Estuvo bien, sin nada para destacar.', 'Cumplió lo básico.', 'Ni bien ni mal.'],
+      promotor: ['Excelente atención, lo recomendaría.', 'Superó mis expectativas.', 'Muy conforme con el trabajo.'],
+    };
+
+    function surveySentiment(s) {
+      if (s.estado !== 'responded') return null;
+      if (s.rating === 'csat' && s.score != null) return s.score >= 4 ? 'promotor' : s.score === 3 ? 'neutro' : 'detractor';
+      if (s.rating) return { insatisfecho: 'detractor', bueno: 'neutro', excelente: 'promotor' }[s.rating] || null;
+      return null;
+    }
+
+    function sentimentPill(sentiment) {
+      if (!sentiment) return '<span class="muted">—</span>';
+      const label = { promotor: 'PROMOTOR', neutro: 'NEUTRO', detractor: 'DETRACTOR' }[sentiment];
+      return `<span class="sentiment-pill ${sentiment}">${label}</span>`;
+    }
+
+    function generarRespuestas(template, sentiment) {
+      return template.preguntas.map((p) => {
+        if (p.type === 'escala 0–10') {
+          const score = sentiment === 'promotor' ? 9 + Math.floor(Math.random() * 2)
+            : sentiment === 'neutro' ? 7 + Math.floor(Math.random() * 2)
+            : Math.floor(Math.random() * 7);
+          return { q: p.q, a: `${score}/10` };
+        }
+        if (p.type === 'escala 1–5') {
+          const score = sentiment === 'promotor' ? 4 + Math.floor(Math.random() * 2)
+            : sentiment === 'neutro' ? 3
+            : 1 + Math.floor(Math.random() * 2);
+          return { q: p.q, a: `${score}/5` };
+        }
+        if (p.type === 'sí / no') return { q: p.q, a: sentiment === 'detractor' ? 'No' : 'Sí' };
+        const pool = OPEN_TEXT_BY_SENTIMENT[sentiment] || OPEN_TEXT_BY_SENTIMENT.neutro;
+        return { q: p.q, a: pool[Math.floor(Math.random() * pool.length)] };
+      });
+    }
+
+    function asignarTemplatesYRespuestas() {
+      surveys.forEach((s) => {
+        const template = templates[Math.floor(Math.random() * templates.length)];
+        s.templateNombre = template.nombre;
+        const sentiment = surveySentiment(s);
+        s.respuestas = sentiment ? generarRespuestas(template, sentiment) : [];
+      });
+    }
+
     let ceQuestions = [];
 
     function npsScaleWidget() {
@@ -974,6 +1023,7 @@
           channel, estado: yaEnviada ? 'sent' : 'ready',
           sent_at: yaEnviada ? new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '',
           responded_at: '', rating: null, score: null,
+          templateNombre: template.nombre, respuestas: [],
         });
         return { code, name: c.name, url };
       });
@@ -1156,6 +1206,8 @@
       return surveys.filter((s) => s.cliente === name && s.job_ref && s.job_ref !== '—');
     }
 
+    let expandedEncuestaCode = null;
+
     function openClienteDetalle(name) {
       const cliente = clientesAggregados().find((c) => c.name === name);
       if (!cliente) return;
@@ -1193,9 +1245,9 @@
         <h2>Encuestas</h2>
         ${misEncuestas.length ? `
         <table>
-          <tr><th>ID</th><th>Trabajo</th><th>Tipo</th><th>Canal</th><th>Estado</th><th>Enviada</th><th>Respondida</th><th>Resultado</th></tr>
+          <tr><th>ID</th><th>Trabajo</th><th>Tipo</th><th>Canal</th><th>Estado</th><th>Enviada</th><th>Respondida</th><th>Sentiment</th></tr>
           ${misEncuestas.map((s) => `
-          <tr>
+          <tr class="clickable" data-encuesta-cliente="${s.code}">
             <td class="code">${s.code}</td>
             <td class="code">${s.job_ref}</td>
             <td>${s.job_type || '—'}</td>
@@ -1203,9 +1255,23 @@
             <td><span class="badge">${REG_STATUS_LABEL[s.estado]}</span></td>
             <td class="num">${s.sent_at || '—'}</td>
             <td class="num">${s.responded_at || '—'}</td>
-            <td>${ratingPill(s)}</td>
-          </tr>`).join('')}
-        </table>` : '<p class="empty">Todavía no se le mandó ninguna encuesta.</p>'}
+            <td>${sentimentPill(surveySentiment(s))}</td>
+          </tr>
+          ${s.code === expandedEncuestaCode ? `
+          <tr>
+            <td colspan="8" style="background:var(--wash)">
+              <p class="muted" style="margin:0 0 .4rem">Template: ${s.templateNombre || '—'}</p>
+              ${s.estado === 'responded' && (s.respuestas || []).length
+                ? s.respuestas.map((a) => `
+                    <div class="question-item" style="background:var(--raised)">
+                      <div class="muted">${a.q}</div>
+                      <div style="margin-top:.3rem;font-weight:600">${a.a}</div>
+                    </div>`).join('')
+                : '<p class="empty">Todavía no respondió esta encuesta.</p>'}
+            </td>
+          </tr>` : ''}`).join('')}
+        </table>
+        <p class="muted">Click en una encuesta para ver sus preguntas y respuestas.</p>` : '<p class="empty">Todavía no se le mandó ninguna encuesta.</p>'}
 
         <h2>Trabajos realizados</h2>
         ${misTrabajos.length ? `
@@ -1223,6 +1289,14 @@
         e.preventDefault();
         detalle.hidden = true;
         document.getElementById('view-clientes').hidden = false;
+      });
+
+      detalle.querySelectorAll('[data-encuesta-cliente]').forEach((tr) => {
+        tr.addEventListener('click', () => {
+          const clickedCode = tr.dataset.encuestaCliente;
+          expandedEncuestaCode = expandedEncuestaCode === clickedCode ? null : clickedCode;
+          openClienteDetalle(name);
+        });
       });
 
       detalle.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1260,6 +1334,7 @@
 
     renderAeClientesList();
     populateTemplateSelect();
+    asignarTemplatesYRespuestas();
 
     ['fe-status', 'fe-type', 'fe-q'].forEach((id) => {
       document.getElementById(id).addEventListener('input', renderSurveysTable);
