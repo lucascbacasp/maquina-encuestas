@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OPERADOR</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a6fc4'/%3E%3Cpath d='M9 17l4.5 4.5L23 12' stroke='%23fff' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: light;
+      --page:      #f7f6f2;
+      --surface:   #fdfdfb;
+      --raised:    #ffffff;
+      --ink:       #1c1b18;
+      --ink-2:     #5f5c55;
+      --muted:     #8f8c83;
+      --hairline:  #e7e5de;
+      --wash:      rgba(28, 27, 24, 0.035);
+      --accent:    #2a6fc4;
+      --accent-ink: #ffffff;
+      --accent-wash: rgba(42, 111, 196, 0.09);
+      --status-good: #0ca30c;
+      --status-warn: #d99a00;
+      --status-crit: #c73a3a;
+      --shadow: 0 1px 2px rgba(28, 27, 24, 0.04), 0 10px 28px -14px rgba(28, 27, 24, 0.10);
+      --ring: 0 0 0 2px var(--page), 0 0 0 4px var(--accent);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --page:      #131311;
+        --surface:   #1b1b18;
+        --raised:    #21211e;
+        --ink:       #f4f3ef;
+        --ink-2:     #b8b5ac;
+        --muted:     #8f8c83;
+        --hairline:  #2b2b27;
+        --wash:      rgba(244, 243, 239, 0.045);
+        --accent:    #5b96e0;
+        --accent-ink: #10131a;
+        --accent-wash: rgba(91, 150, 224, 0.14);
+        --status-warn: #e0b23e;
+        --status-crit: #d96666;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 12px 32px -16px rgba(0, 0, 0, 0.45);
+        --ring: 0 0 0 2px var(--page), 0 0 0 4px var(--accent);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI Variable Display', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+      background: var(--page);
+      color: var(--ink);
+      max-width: 1020px;
+      margin: 0 auto;
+      padding: 1.6rem 1.2rem 3.5rem;
+      line-height: 1.55;
+    }
+    a { color: var(--accent); }
+    .back-link { display: inline-block; margin: 0 0 .6rem; color: var(--accent); text-decoration: none; font-weight: 500; font-size: .88rem; }
+    .back-link:hover { text-decoration: underline; }
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 650;
+      letter-spacing: -0.022em;
+      line-height: 1.15;
+      margin: 0 0 .15rem;
+    }
+    .muted { color: var(--muted); font-size: .85rem; }
+
+    /* ---- tiles ---- */
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: .9rem; margin-top: 1.4rem; }
+    .tile { background: var(--surface); border-radius: 14px; padding: 1rem 1.1rem .9rem; box-shadow: var(--shadow); }
+    .tile b { display: block; font-size: 2.05rem; font-weight: 650; letter-spacing: -0.025em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+    .tile small { color: var(--ink-2); font-size: .8rem; font-weight: 500; }
+    .tile.accent b { color: var(--accent); }
+    .tile.good b { color: var(--status-good); }
+
+    h2 { font-size: 1.04rem; font-weight: 600; letter-spacing: -0.012em; margin: 2.2rem 0 .8rem; }
+
+    /* ---- tabla ---- */
+    table { border-collapse: collapse; width: 100%; font-size: .9rem; background: var(--surface); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+    th, td { text-align: left; padding: .6rem .75rem; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    th { color: var(--muted); font-weight: 550; font-size: .78rem; letter-spacing: .015em; background: var(--wash); }
+    tbody tr { cursor: pointer; transition: background-color .15s ease; }
+    tbody tr:hover td { background: var(--wash); }
+    .code { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: .85em; letter-spacing: .01em; }
+
+    /* ---- filtros y exportación ---- */
+    .filters { display: flex; gap: .55rem; flex-wrap: wrap; align-items: center; margin: 1rem 0; }
+    .filters input[type="search"] { min-width: 210px; flex: 1; }
+    .filters input[type="date"] { min-width: 0; }
+    .filters select { width: auto; min-width: 140px; }
+    .filters .date-sep { color: var(--muted); font-size: .82rem; }
+    .count-note { color: var(--muted); font-size: .82rem; margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .export-row { display: flex; gap: .55rem; flex-wrap: wrap; margin: 0 0 1rem; }
+
+    .export-menu { position: relative; display: inline-block; }
+    .export-menu > summary {
+      list-style: none; cursor: pointer; font-size: .85rem; font-weight: 500;
+      display: inline-flex; align-items: center; gap: .4rem;
+      color: var(--ink); background: transparent;
+      border: 1px solid var(--hairline); border-radius: 9px; padding: .42rem .65rem;
+      transition: border-color .18s ease, background-color .18s ease;
+    }
+    .export-menu > summary::-webkit-details-marker { display: none; }
+    .export-menu > summary:hover { border-color: var(--accent); }
+    .export-menu[open] > summary { border-color: var(--accent); }
+    .export-menu .caret { font-size: .7rem; color: var(--muted); transition: transform .15s ease; }
+    .export-menu[open] .caret { transform: rotate(180deg); }
+    .export-panel {
+      position: absolute; top: calc(100% + .4rem); left: 0;
+      background: var(--surface); border: 1px solid var(--hairline); border-radius: 12px;
+      box-shadow: var(--shadow); padding: .35rem; display: flex; flex-direction: column;
+      gap: .1rem; min-width: 160px; z-index: 5;
+    }
+    .export-panel button {
+      border: 1px solid transparent; background: transparent; border-radius: 8px;
+      padding: .5rem .6rem; width: 100%; text-align: left; font-size: .88rem;
+    }
+    .export-panel button:hover { background: var(--wash); border-color: transparent; }
+
+    .badge { display: inline-flex; align-items: center; gap: .35rem; font-size: .74rem; font-weight: 500; padding: .12rem .55rem; border: 1px solid var(--hairline); border-radius: 999px; color: var(--ink-2); background: var(--raised); white-space: nowrap; }
+    .chip { display: inline-block; width: 7px; height: 7px; border-radius: 3px; }
+    .chip.mutedc { background: var(--muted); }
+    .chip.accent { background: var(--accent); }
+    .chip.warn { background: var(--status-warn); }
+    .chip.good { background: var(--status-good); }
+
+    /* ---- controles ---- */
+    input, textarea, select, button {
+      font: inherit; color: var(--ink); background: var(--raised);
+      border: 1px solid var(--hairline); border-radius: 9px; padding: .42rem .65rem;
+      transition: border-color .18s ease, background-color .18s ease, transform .12s ease, box-shadow .18s ease;
+    }
+    textarea { width: 100%; resize: vertical; min-height: 4.5rem; }
+    select { width: 100%; }
+    button { cursor: pointer; font-weight: 500; }
+    button:hover { border-color: var(--accent); }
+    button:active { transform: translateY(1px) scale(.99); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    button.primary:hover { filter: brightness(1.07); }
+    button.ghost { background: transparent; }
+    label.field { display: block; font-size: .82rem; font-weight: 600; color: var(--ink-2); margin: 1rem 0 .35rem; }
+    :focus-visible { outline: none; box-shadow: var(--ring); border-radius: 6px; }
+
+    /* ---- fotos ---- */
+    .photo-input-row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+    .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: .55rem; margin-top: .7rem; }
+    .photo-thumb { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; border: 1px solid var(--hairline); background: var(--wash); }
+    .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .photo-thumb button { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; padding: 0; line-height: 1; font-size: .8rem; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; border: none; }
+    .photo-empty { color: var(--muted); font-size: .82rem; margin-top: .5rem; }
+
+    /* ---- modal ---- */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(20, 19, 16, .45);
+      display: none; align-items: flex-start; justify-content: center;
+      padding: 2.2rem 1rem; z-index: 20; overflow-y: auto;
+    }
+    .modal-backdrop.show { display: flex; }
+    .modal {
+      background: var(--surface); border-radius: 18px; box-shadow: var(--shadow);
+      width: 100%; max-width: 560px; padding: 1.6rem 1.6rem 1.8rem;
+    }
+    .modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+    .modal-head h3 { margin: 0 0 .2rem; font-size: 1.15rem; letter-spacing: -0.015em; }
+    .modal-head button.ghost { padding: .3rem .55rem; }
+    .modal-actions { display: flex; gap: .6rem; margin-top: 1.4rem; }
+
+    #toast {
+      position: fixed; left: 50%; bottom: 1.4rem; transform: translate(-50%, .6rem);
+      background: var(--ink); color: var(--page); padding: .55rem 1rem; border-radius: 10px;
+      font-size: .88rem; font-weight: 500; box-shadow: var(--shadow); opacity: 0;
+      pointer-events: none; transition: opacity .22s ease, transform .22s ease; z-index: 30;
+      max-width: min(90vw, 40ch);
+    }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="encuestador.html">&larr; Volver</a>
+  <header>
+    <h1>OPERADOR</h1>
+    <p class="muted">Trabajos asignados y su seguimiento</p>
+  </header>
+
+  <div class="tiles">
+    <div class="tile"><b id="tile-asignados">0</b><small>trabajos asignados</small></div>
+    <div class="tile accent"><b id="tile-encurso">0</b><small>trabajos en curso</small></div>
+    <div class="tile good"><b id="tile-finalizados">0</b><small>trabajos finalizados</small></div>
+  </div>
+
+  <h2>Mis trabajos</h2>
+
+  <div class="filters">
+    <input type="search" id="f-buscar" placeholder="Buscar por trabajo, tipo o detalle...">
+    <select id="f-cliente"><option value="">Todos los clientes</option></select>
+    <select id="f-estado">
+      <option value="">Todos los estados</option>
+      <option>Sin Iniciar</option>
+      <option>En curso</option>
+      <option>Pendiente</option>
+      <option>Finalizado</option>
+    </select>
+    <input type="date" id="f-desde" title="Fecha inicio desde">
+    <span class="date-sep">a</span>
+    <input type="date" id="f-hasta" title="Fecha inicio hasta">
+    <button class="ghost" type="button" id="f-limpiar">Limpiar filtros</button>
+    <span class="count-note" id="count-note"></span>
+  </div>
+
+  <div class="export-row">
+    <details class="export-menu" id="export-menu">
+      <summary>⬇ Descargar <span class="caret">▾</span></summary>
+      <div class="export-panel">
+        <button type="button" id="export-csv">CSV</button>
+        <button type="button" id="export-xls">XLS</button>
+        <button type="button" id="export-pdf">PDF</button>
+      </div>
+    </details>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Trabajo</th>
+        <th>Cliente</th>
+        <th>Trabajo a realizar</th>
+        <th>Detalle</th>
+        <th>Fecha inicio</th>
+        <th>Fecha fin</th>
+        <th>Estado</th>
+      </tr>
+    </thead>
+    <tbody id="jobs-body"></tbody>
+  </table>
+
+  <div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <h3 id="modal-title">Trabajo</h3>
+          <p class="muted" id="modal-sub"></p>
+        </div>
+        <button class="ghost" id="modal-close" type="button" aria-label="Cerrar">✕</button>
+      </div>
+
+      <label class="field" for="modal-estado">Estado</label>
+      <select id="modal-estado">
+        <option>Sin Iniciar</option>
+        <option>En curso</option>
+        <option>Pendiente</option>
+        <option>Finalizado</option>
+      </select>
+
+      <label class="field" for="modal-obs">Observaciones</label>
+      <textarea id="modal-obs" placeholder="Notas del trabajo..."></textarea>
+
+      <label class="field">Fotos</label>
+      <div class="photo-input-row">
+        <button class="ghost" type="button" id="btn-take-photo">📷 Sacar foto</button>
+        <button class="ghost" type="button" id="btn-add-photo">🖼️ Elegir de galería</button>
+      </div>
+      <input type="file" id="input-camera" accept="image/*" capture="environment" hidden>
+      <input type="file" id="input-gallery" accept="image/*" multiple hidden>
+      <div class="photo-grid" id="photo-grid"></div>
+      <p class="photo-empty" id="photo-empty">Sin fotos todavía.</p>
+
+      <div class="modal-actions">
+        <button class="primary" type="button" id="modal-save">Guardar</button>
+        <button class="ghost" type="button" id="modal-cancel">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" role="status"></div>
+
+  <script>
+    const ESTADOS = ['Sin Iniciar', 'En curso', 'Pendiente', 'Finalizado'];
+    const CHIP_BY_ESTADO = {
+      'Sin Iniciar': 'mutedc',
+      'En curso': 'accent',
+      'Pendiente': 'warn',
+      'Finalizado': 'good',
+    };
+
+    // Datos de ejemplo (vista previa, sin backend todavía).
+    let jobs = [
+      { id: 'T-104', cliente: 'Dario Sosa', trabajo: 'Pintura', detalle: 'Repintado de fachada frontal', fechaInicio: '2026-07-10', fechaFin: '', estado: 'En curso', obs: '', fotos: [] },
+      { id: 'T-106', cliente: 'Dario Sosa', trabajo: 'Pintura', detalle: 'Retoque de humedad en living', fechaInicio: '2026-07-16', fechaFin: '', estado: 'Sin Iniciar', obs: '', fotos: [] },
+      { id: 'T-098', cliente: 'Marta Gil', trabajo: 'Plomería', detalle: 'Cambio de cañería en cocina', fechaInicio: '2026-07-05', fechaFin: '', estado: 'Pendiente', obs: '', fotos: [] },
+      { id: 'T-101', cliente: 'Carlos Ruiz', trabajo: 'Electricidad', detalle: 'Instalación de tablero nuevo', fechaInicio: '2026-06-20', fechaFin: '2026-06-25', estado: 'Finalizado', obs: '', fotos: [] },
+      { id: 'T-110', cliente: 'Laura Paz', trabajo: 'Pintura', detalle: 'Pintura completa depto 2 ambientes', fechaInicio: '2026-07-08', fechaFin: '', estado: 'En curso', obs: '', fotos: [] },
+      { id: 'T-112', cliente: 'Jorge Diaz', trabajo: 'Gasista', detalle: 'Revisión de instalación de gas', fechaInicio: '2026-07-17', fechaFin: '', estado: 'Sin Iniciar', obs: '', fotos: [] },
+    ];
+
+    let openJobId = null;
+
+    function badge(estado) {
+      return `<span class="badge"><span class="chip ${CHIP_BY_ESTADO[estado]}"></span>${estado}</span>`;
+    }
+
+    function renderTiles() {
+      document.getElementById('tile-asignados').textContent = jobs.length;
+      document.getElementById('tile-encurso').textContent = jobs.filter(j => j.estado === 'En curso').length;
+      document.getElementById('tile-finalizados').textContent = jobs.filter(j => j.estado === 'Finalizado').length;
+    }
+
+    function populateClienteFilter() {
+      const sel = document.getElementById('f-cliente');
+      const clientes = [...new Set(jobs.map(j => j.cliente))].sort();
+      sel.innerHTML = '<option value="">Todos los clientes</option>' +
+        clientes.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    function filteredJobs() {
+      const buscar = document.getElementById('f-buscar').value.trim().toLowerCase();
+      const cliente = document.getElementById('f-cliente').value;
+      const estado = document.getElementById('f-estado').value;
+      const desde = document.getElementById('f-desde').value;
+      const hasta = document.getElementById('f-hasta').value;
+      return jobs.filter(j => {
+        if (buscar && !`${j.id} ${j.trabajo} ${j.detalle}`.toLowerCase().includes(buscar)) return false;
+        if (cliente && j.cliente !== cliente) return false;
+        if (estado && j.estado !== estado) return false;
+        if (desde && j.fechaInicio < desde) return false;
+        if (hasta && j.fechaInicio > hasta) return false;
+        return true;
+      });
+    }
+
+    function renderTable() {
+      const visible = filteredJobs();
+      const body = document.getElementById('jobs-body');
+      body.innerHTML = visible.map(j => `
+        <tr data-id="${j.id}">
+          <td class="code">${j.id}</td>
+          <td>${j.cliente}</td>
+          <td>${j.trabajo}</td>
+          <td>${j.detalle}</td>
+          <td class="code">${j.fechaInicio || '—'}</td>
+          <td class="code">${j.fechaFin || '—'}</td>
+          <td>${badge(j.estado)}</td>
+        </tr>
+      `).join('');
+      [...body.querySelectorAll('tr')].forEach(tr => {
+        tr.addEventListener('click', () => openModal(tr.dataset.id));
+      });
+      document.getElementById('count-note').textContent = `${visible.length} de ${jobs.length}`;
+    }
+
+    function renderPhotos() {
+      const job = jobs.find(j => j.id === openJobId);
+      const grid = document.getElementById('photo-grid');
+      const empty = document.getElementById('photo-empty');
+      empty.style.display = job.fotos.length ? 'none' : 'block';
+      grid.innerHTML = job.fotos.map((src, i) => `
+        <div class="photo-thumb">
+          <img src="${src}" alt="Foto ${i + 1} del trabajo ${job.id}">
+          <button type="button" data-i="${i}" aria-label="Quitar foto">✕</button>
+        </div>
+      `).join('');
+      [...grid.querySelectorAll('button')].forEach(btn => {
+        btn.addEventListener('click', () => {
+          job.fotos.splice(Number(btn.dataset.i), 1);
+          renderPhotos();
+        });
+      });
+    }
+
+    function openModal(id) {
+      openJobId = id;
+      const job = jobs.find(j => j.id === id);
+      document.getElementById('modal-title').textContent = `Trabajo ${job.id} — ${job.cliente}`;
+      document.getElementById('modal-sub').textContent = `${job.trabajo} · ${job.detalle} · Inicio: ${job.fechaInicio || '—'} · Fin: ${job.fechaFin || '—'}`;
+      document.getElementById('modal-estado').value = job.estado;
+      document.getElementById('modal-obs').value = job.obs;
+      renderPhotos();
+      document.getElementById('modal-backdrop').classList.add('show');
+    }
+
+    function closeModal() {
+      document.getElementById('modal-backdrop').classList.remove('show');
+      openJobId = null;
+    }
+
+    function addPhotoFiles(fileList) {
+      const job = jobs.find(j => j.id === openJobId);
+      [...fileList].forEach(file => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          job.fotos.push(reader.result);
+          renderPhotos();
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    document.getElementById('modal-cancel').addEventListener('click', closeModal);
+    document.getElementById('modal-backdrop').addEventListener('click', (e) => {
+      if (e.target.id === 'modal-backdrop') closeModal();
+    });
+
+    document.getElementById('btn-take-photo').addEventListener('click', () => document.getElementById('input-camera').click());
+    document.getElementById('btn-add-photo').addEventListener('click', () => document.getElementById('input-gallery').click());
+    document.getElementById('input-camera').addEventListener('change', (e) => { addPhotoFiles(e.target.files); e.target.value = ''; });
+    document.getElementById('input-gallery').addEventListener('change', (e) => { addPhotoFiles(e.target.files); e.target.value = ''; });
+
+    document.getElementById('modal-save').addEventListener('click', () => {
+      const job = jobs.find(j => j.id === openJobId);
+      job.estado = document.getElementById('modal-estado').value;
+      job.obs = document.getElementById('modal-obs').value;
+      renderTable();
+      renderTiles();
+      closeModal();
+      showToast('Cambios guardados (vista previa)');
+    });
+
+    ['f-buscar', 'f-cliente', 'f-estado', 'f-desde', 'f-hasta'].forEach(id => {
+      document.getElementById(id).addEventListener('input', renderTable);
+      document.getElementById(id).addEventListener('change', renderTable);
+    });
+    document.getElementById('f-limpiar').addEventListener('click', () => {
+      document.getElementById('f-buscar').value = '';
+      document.getElementById('f-cliente').value = '';
+      document.getElementById('f-estado').value = '';
+      document.getElementById('f-desde').value = '';
+      document.getElementById('f-hasta').value = '';
+      renderTable();
+    });
+
+    // ---------------------------------------------------------- exportación
+
+    const EXPORT_COLUMNS = [
+      { key: 'id', label: 'Trabajo' },
+      { key: 'cliente', label: 'Cliente' },
+      { key: 'trabajo', label: 'Trabajo a realizar' },
+      { key: 'detalle', label: 'Detalle' },
+      { key: 'fechaInicio', label: 'Fecha inicio' },
+      { key: 'fechaFin', label: 'Fecha fin' },
+      { key: 'estado', label: 'Estado' },
+      { key: 'obs', label: 'Observaciones' },
+    ];
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function csvEscape(val) {
+      const s = String(val ?? '');
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+
+    function exportCsv() {
+      const rows = filteredJobs();
+      const lines = [EXPORT_COLUMNS.map(c => csvEscape(c.label)).join(',')];
+      rows.forEach(j => lines.push(EXPORT_COLUMNS.map(c => csvEscape(j[c.key])).join(',')));
+      const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+      downloadBlob(blob, 'trabajos.csv');
+      showToast('CSV descargado');
+    }
+
+    function exportXls() {
+      const rows = filteredJobs();
+      const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const head = '<tr>' + EXPORT_COLUMNS.map(c => `<th>${esc(c.label)}</th>`).join('') + '</tr>';
+      const body = rows.map(j => '<tr>' + EXPORT_COLUMNS.map(c => `<td>${esc(j[c.key])}</td>`).join('') + '</tr>').join('');
+      const html = `<html><head><meta charset="utf-8"></head><body><table border="1">${head}${body}</table></body></html>`;
+      const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+      downloadBlob(blob, 'trabajos.xls');
+      showToast('XLS descargado');
+    }
+
+    // Generador de PDF mínimo (sin dependencias): arma un documento de una
+    // página a mano usando la sintaxis de objetos de PDF y fuentes base14.
+    function buildSimplePdf(title, columns, rows) {
+      const toLatin1 = (s) => String(s ?? '').split('').map(c => (c.charCodeAt(0) > 255 ? '?' : c)).join('');
+      const escPdf = (s) => s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+      const truncate = (s, n) => (s.length > n ? s.slice(0, n - 1) + '.' : s);
+
+      const marginTop = 760;
+      const rowH = 16;
+      const rowsPerPage = Math.max(1, Math.floor((marginTop - 60) / rowH));
+      const pages = [];
+      for (let i = 0; i < rows.length; i += rowsPerPage) pages.push(rows.slice(i, i + rowsPerPage));
+      if (pages.length === 0) pages.push([]);
+
+      // ids: 1 catalog, 2 pages, luego 1 obj "page" + 1 obj "contents" por página, luego 2 fuentes
+      const numPages = pages.length;
+      const pageIdBase = 3; // páginas ocupan ids 3..3+numPages-1
+      const contentIdBase = pageIdBase + numPages; // contenidos ocupan ids después de las páginas
+      const fontRegularId = contentIdBase + numPages;
+      const fontBoldId = fontRegularId + 1;
+
+      const finalObjs = [];
+      finalObjs.push(`<< /Type /Catalog /Pages 2 0 R >>`); // 1
+      finalObjs.push(`<< /Type /Pages /Kids [${pages.map((_, i) => `${pageIdBase + i} 0 R`).join(' ')}] /Count ${numPages} >>`); // 2
+      pages.forEach((_, i) => {
+        finalObjs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontRegularId} 0 R /F2 ${fontBoldId} 0 R >> >> /Contents ${contentIdBase + i} 0 R >>`);
+      });
+      pages.forEach((pageRows, pageIdx) => {
+        let content = 'BT\n/F2 12 Tf\n1 0 0 1 36 776 Tm\n(' + escPdf(toLatin1(title)) + `) Tj\nET\n`;
+        content += 'BT\n/F2 8 Tf\n';
+        columns.forEach(col => {
+          content += `1 0 0 1 ${col.x} ${marginTop} Tm\n(${escPdf(toLatin1(col.label))}) Tj\n`;
+        });
+        content += 'ET\n';
+        pageRows.forEach((row, i) => {
+          const y = marginTop - rowH * (i + 1);
+          content += 'BT\n/F1 8 Tf\n';
+          columns.forEach(col => {
+            let val = toLatin1(String(row[col.key] ?? '') || '-');
+            if (col.maxChars) val = truncate(val, col.maxChars);
+            content += `1 0 0 1 ${col.x} ${y} Tm\n(${escPdf(val)}) Tj\n`;
+          });
+          content += 'ET\n';
+        });
+        finalObjs.push(`<< /Length ${content.length} >>\nstream\n${content}endstream`);
+      });
+      finalObjs.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+      finalObjs.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+
+      let pdf = '%PDF-1.4\n';
+      const offsets = [0];
+      finalObjs.forEach((body, idx) => {
+        offsets.push(pdf.length);
+        pdf += `${idx + 1} 0 obj\n${body}\nendobj\n`;
+      });
+      const xrefOffset = pdf.length;
+      pdf += `xref\n0 ${finalObjs.length + 1}\n0000000000 65535 f \n`;
+      for (let i = 1; i <= finalObjs.length; i++) pdf += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+      pdf += `trailer\n<< /Size ${finalObjs.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+
+      const bytes = new Uint8Array(pdf.length);
+      for (let i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 0xff;
+      return new Blob([bytes], { type: 'application/pdf' });
+    }
+
+    function exportPdf() {
+      const rows = filteredJobs();
+      const columns = [
+        { key: 'id', label: 'Trabajo', x: 36, maxChars: 8 },
+        { key: 'cliente', label: 'Cliente', x: 90, maxChars: 16 },
+        { key: 'trabajo', label: 'Tipo', x: 195, maxChars: 14 },
+        { key: 'detalle', label: 'Detalle', x: 280, maxChars: 26 },
+        { key: 'fechaInicio', label: 'Inicio', x: 415, maxChars: 10 },
+        { key: 'fechaFin', label: 'Fin', x: 475, maxChars: 10 },
+        { key: 'estado', label: 'Estado', x: 530, maxChars: 12 },
+      ];
+      const blob = buildSimplePdf('OPERADOR — Mis trabajos', columns, rows);
+      downloadBlob(blob, 'trabajos.pdf');
+      showToast('PDF descargado');
+    }
+
+    const exportMenu = document.getElementById('export-menu');
+    document.getElementById('export-csv').addEventListener('click', () => { exportCsv(); exportMenu.open = false; });
+    document.getElementById('export-xls').addEventListener('click', () => { exportXls(); exportMenu.open = false; });
+    document.getElementById('export-pdf').addEventListener('click', () => { exportPdf(); exportMenu.open = false; });
+    document.addEventListener('click', (e) => {
+      if (exportMenu.open && !exportMenu.contains(e.target)) exportMenu.open = false;
+    });
+
+    renderTiles();
+    populateClienteFilter();
+    renderTable();
+  </script>
+</body>
+</html>

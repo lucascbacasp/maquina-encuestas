@@ -1,0 +1,1232 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ADMINISTRADOR — preview</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a6fc4'/%3E%3Cpath d='M9 17l4.5 4.5L23 12' stroke='%23fff' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: light;
+      --page:      #f7f6f2;
+      --surface:   #fdfdfb;
+      --raised:    #ffffff;
+      --ink:       #1c1b18;
+      --ink-2:     #5f5c55;
+      --muted:     #8f8c83;
+      --hairline:  #e7e5de;
+      --wash:      rgba(28, 27, 24, 0.035);
+      --accent:    #2a6fc4;
+      --accent-ink: #ffffff;
+      --accent-wash: rgba(42, 111, 196, 0.09);
+      --status-good: #0ca30c;
+      --status-warn: #d99a00;
+      --status-crit: #c73a3a;
+      --shadow: 0 1px 2px rgba(28, 27, 24, 0.04), 0 10px 28px -14px rgba(28, 27, 24, 0.10);
+      --ring: 0 0 0 2px var(--page), 0 0 0 4px var(--accent);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --page:      #131311;
+        --surface:   #1b1b18;
+        --raised:    #21211e;
+        --ink:       #f4f3ef;
+        --ink-2:     #b8b5ac;
+        --muted:     #8f8c83;
+        --hairline:  #2b2b27;
+        --wash:      rgba(244, 243, 239, 0.045);
+        --accent:    #5b96e0;
+        --accent-ink: #10131a;
+        --accent-wash: rgba(91, 150, 224, 0.14);
+        --status-warn: #e0b23e;
+        --status-crit: #d96666;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 12px 32px -16px rgba(0, 0, 0, 0.45);
+        --ring: 0 0 0 2px var(--page), 0 0 0 4px var(--accent);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI Variable Display', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+      background: var(--page); color: var(--ink);
+      max-width: 1080px; margin: 0 auto; padding: 1.6rem 1.2rem 3.5rem; line-height: 1.55;
+    }
+    a { color: var(--accent); }
+    .back-link { display: inline-block; color: var(--accent); text-decoration: none; font-weight: 500; font-size: .88rem; }
+    .back-link:hover { text-decoration: underline; }
+    .preview-flag {
+      background: var(--accent-wash); border: 1px dashed var(--accent); border-radius: 10px;
+      padding: .6rem .9rem; font-size: .82rem; color: var(--ink-2); margin-bottom: 1.2rem;
+    }
+    header h1 { font-size: 1.6rem; font-weight: 650; letter-spacing: -0.022em; line-height: 1.15; margin: 0 0 .15rem; }
+    .muted { color: var(--muted); font-size: .85rem; }
+
+    .tabs { display: flex; gap: .15rem; margin-top: 1rem; border-bottom: 1px solid var(--hairline); flex-wrap: wrap; }
+    .tabs a { padding: .5rem .95rem; text-decoration: none; color: var(--ink-2); font-weight: 500; font-size: .92rem; border-bottom: 2px solid transparent; margin-bottom: -1px; border-radius: 9px 9px 0 0; }
+    .tabs a[aria-current="page"] { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
+    .tabs a.renamed { position: relative; }
+    .tabs a.renamed::after {
+      content: "renombrada"; position: absolute; top: -1.15rem; left: 50%; transform: translateX(-50%);
+      font-size: .62rem; color: var(--accent); font-weight: 600; white-space: nowrap; letter-spacing: .02em;
+    }
+
+    h2 { font-size: 1.04rem; font-weight: 600; letter-spacing: -0.012em; margin: 2.2rem 0 .8rem; }
+
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: .9rem; margin-top: 1.2rem; }
+    .tile { background: var(--surface); border-radius: 14px; padding: 1rem 1.1rem .9rem; box-shadow: var(--shadow); }
+    .tile b { display: block; font-size: 2.05rem; font-weight: 650; letter-spacing: -0.025em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+    .tile small { color: var(--ink-2); font-size: .8rem; font-weight: 500; }
+    .tile.warn b { color: var(--status-warn); }
+    .tile.accent b { color: var(--accent); }
+    .tile.good b { color: var(--status-good); }
+    .tile.crit b { color: var(--status-crit); }
+
+    .dist { margin-top: 1rem; }
+    .dist-bar { display: flex; height: 13px; border-radius: 7px; overflow: hidden; gap: 2px; }
+    .dist-bar span { display: block; border-radius: 3px; min-width: 4px; }
+    .dist-legend { display: flex; flex-wrap: wrap; gap: 1.1rem; margin-top: .45rem; font-size: .84rem; color: var(--ink-2); font-weight: 500; }
+    .dist-legend .chip { margin-right: .38rem; }
+
+    table { border-collapse: collapse; width: 100%; font-size: .9rem; background: var(--surface); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+    th, td { text-align: left; padding: .6rem .75rem; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    th { color: var(--muted); font-weight: 550; font-size: .78rem; letter-spacing: .015em; background: var(--wash); }
+    .code { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: .85em; letter-spacing: .01em; }
+    .num { font-variant-numeric: tabular-nums; }
+
+    .badge { display: inline-flex; align-items: center; gap: .35rem; font-size: .74rem; font-weight: 500; padding: .12rem .55rem; border: 1px solid var(--hairline); border-radius: 999px; color: var(--ink-2); background: var(--raised); white-space: nowrap; }
+    .chip { display: inline-block; width: 7px; height: 7px; border-radius: 3px; }
+    .chip.mutedc { background: var(--muted); }
+    .chip.accent { background: var(--accent); }
+    .chip.warn { background: var(--status-warn); }
+    .chip.good { background: var(--status-good); }
+    .chip.crit { background: var(--status-crit); }
+
+    .rating-pill { display: inline-flex; align-items: center; gap: .38rem; font-size: .78rem; font-weight: 550; padding: .1rem .55rem; border-radius: 999px; border: 1px solid; }
+    .rating-pill .chip { margin-right: 0; width: 7px; height: 7px; }
+    .rating-pill.insatisfecho { border-color: var(--status-crit); color: var(--status-crit); }
+    .rating-pill.bueno { border-color: var(--status-warn); color: var(--status-warn); }
+    .rating-pill.excelente { border-color: var(--status-good); color: var(--status-good); }
+
+    .card { background: var(--surface); border-radius: 14px; padding: .9rem 1.1rem; margin: .6rem 0; box-shadow: var(--shadow); }
+    .card .who { font-weight: 600; color: var(--ink); }
+    .card.case-open { border-left: 4px solid var(--status-crit); }
+    .row { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; margin-top: .6rem; }
+    form.close-job { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: .55rem; }
+    form.close-job button { grid-column: 1 / -1; justify-self: start; }
+    a.wa { display: inline-block; text-decoration: none; padding: .42rem .8rem; border: 1px solid var(--status-good); border-radius: 9px; color: var(--ink); font-weight: 500; transition: background-color .18s ease, color .18s ease; }
+    a.wa:hover { background: var(--status-good); color: #fff; }
+    .empty { color: var(--muted); font-size: .85rem; padding: .3rem 0; }
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover td { background: var(--wash); }
+
+    .field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .55rem; }
+    .field-label { display: block; font-size: .8rem; font-weight: 600; color: var(--ink-2); margin-bottom: .3rem; }
+    .chip-list { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .7rem; }
+    .chip-item {
+      display: inline-flex; align-items: center; gap: .4rem; background: var(--wash);
+      border: 1px solid var(--hairline); border-radius: 999px; padding: .25rem .5rem .25rem .7rem; font-size: .82rem;
+    }
+    .chip-item button {
+      border: none; background: transparent; padding: 0; width: 16px; height: 16px;
+      line-height: 1; border-radius: 50%; font-size: .7rem; color: var(--muted);
+    }
+    .chip-item button:hover { background: var(--hairline); color: var(--ink); }
+
+    .question-item { border: 1px solid var(--hairline); border-radius: 12px; padding: .7rem .8rem; margin-top: .6rem; }
+    .question-item .row { margin-top: 0; }
+    .nps-scale { margin-top: .7rem; }
+    .nps-scale-row { display: flex; gap: .3rem; overflow-x: auto; padding-bottom: .2rem; }
+    .nps-dot {
+      width: 32px; height: 32px; flex: 0 0 auto; border-radius: 8px; border: 1px solid var(--hairline);
+      background: var(--raised); font-size: .8rem; font-weight: 600; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .nps-dot:hover { border-color: var(--accent); }
+    .nps-dot.selected { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+    .nps-scale-labels { display: flex; justify-content: space-between; font-size: .72rem; color: var(--muted); margin-top: .35rem; }
+
+    .autocomplete-wrap { position: relative; flex: 1; min-width: 180px; }
+    .autocomplete-list {
+      position: absolute; top: calc(100% + .3rem); left: 0; right: 0; z-index: 6;
+      background: var(--surface); border: 1px solid var(--hairline); border-radius: 10px;
+      box-shadow: var(--shadow); max-height: 220px; overflow-y: auto;
+    }
+    .autocomplete-item { padding: .5rem .7rem; cursor: pointer; font-size: .88rem; display: flex; justify-content: space-between; gap: .6rem; }
+    .autocomplete-item:hover, .autocomplete-item.active { background: var(--wash); }
+
+    .sentiment-pill {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: .28rem .75rem; border-radius: 999px; font-size: .72rem; font-weight: 700;
+      letter-spacing: .03em; color: #fff; white-space: nowrap;
+    }
+    .sentiment-pill.promotor { background: var(--status-good); }
+    .sentiment-pill.neutro { background: var(--status-warn); }
+    .sentiment-pill.detractor { background: var(--status-crit); }
+
+    input, textarea, select, button { font: inherit; color: var(--ink); background: var(--raised); border: 1px solid var(--hairline); border-radius: 9px; padding: .42rem .65rem; transition: border-color .18s ease, background-color .18s ease; }
+    select { width: auto; min-width: 140px; }
+    button { cursor: pointer; font-weight: 500; }
+    button:hover { border-color: var(--accent); }
+    button:active { transform: translateY(1px) scale(.99); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    button.primary:hover { filter: brightness(1.07); }
+    button.small { font-size: .8rem; padding: .3rem .55rem; }
+    :focus-visible { outline: none; box-shadow: var(--ring); border-radius: 6px; }
+
+    .filters { display: flex; gap: .55rem; flex-wrap: wrap; align-items: center; margin: 1rem 0; }
+    .filters input[type="search"] { min-width: 210px; flex: 1; }
+    .filters .date-sep { color: var(--muted); font-size: .82rem; }
+    .count-note { color: var(--muted); font-size: .82rem; margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .export-row { display: flex; gap: .55rem; flex-wrap: wrap; margin: 0 0 1rem; }
+
+    .export-menu { position: relative; display: inline-block; }
+    .export-menu > summary { list-style: none; cursor: pointer; font-size: .85rem; font-weight: 500; display: inline-flex; align-items: center; gap: .4rem; color: var(--ink); background: transparent; border: 1px solid var(--hairline); border-radius: 9px; padding: .42rem .65rem; }
+    .export-menu > summary::-webkit-details-marker { display: none; }
+    .export-menu > summary:hover, .export-menu[open] > summary { border-color: var(--accent); }
+    .export-menu .caret { font-size: .7rem; color: var(--muted); transition: transform .15s ease; }
+    .export-menu[open] .caret { transform: rotate(180deg); }
+    .export-panel { position: absolute; top: calc(100% + .4rem); left: 0; background: var(--surface); border: 1px solid var(--hairline); border-radius: 12px; box-shadow: var(--shadow); padding: .35rem; display: flex; flex-direction: column; gap: .1rem; min-width: 160px; z-index: 5; }
+    .export-panel button { border: 1px solid transparent; background: transparent; border-radius: 8px; padding: .5rem .6rem; width: 100%; text-align: left; font-size: .88rem; }
+    .export-panel button:hover { background: var(--wash); border-color: transparent; }
+
+    .contact-row { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+    .contact-row input { min-width: 150px; }
+
+    #toast { position: fixed; left: 50%; bottom: 1.4rem; transform: translate(-50%, .6rem); background: var(--ink); color: var(--page); padding: .55rem 1rem; border-radius: 10px; font-size: .88rem; font-weight: 500; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .22s ease; z-index: 30; max-width: min(90vw, 40ch); }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  </style>
+</head>
+<body>
+  <div class="preview-flag">
+    Vista previa — no está conectada al backend real. Sirve para validar el diseño antes de tocar
+    <code>ui/app.js</code> / <code>handler.js</code>.
+  </div>
+
+  <header>
+    <h1>Gestión de Casos</h1>
+    <p class="muted">Envío diferido: 45 min · WhatsApp: tap-to-send (wa.me, sin API de Meta) · Reenvío automático: 48 hs (máx. 1) · Reseña Google: activa</p>
+    <nav class="tabs" aria-label="Vistas">
+      <a href="#" class="renamed" data-view="administracion" aria-current="page">Administración</a>
+      <a href="#" data-view="encuestas">Encuestas</a>
+      <a href="#" data-view="clientes">Clientes</a>
+      <a href="#" data-view="resultados">Resultados</a>
+    </nav>
+  </header>
+
+  <div id="view-administracion">
+  <div class="tiles">
+    <div class="tile"><b>71%</b><small>enviadas · 5 de 7</small></div>
+    <div class="tile"><b>80%</b><small>respondidas · 4 de 5</small></div>
+    <div class="tile"><b>50%</b><small>satisfacción (bueno + excelente)</small></div>
+    <div class="tile"><b>2</b><small>casos abiertos</small></div>
+  </div>
+
+  <h2>Encuestas — seguimiento de envío</h2>
+  <p class="muted">Unifica lo que hoy son 3 secciones separadas ("Para enviar por WhatsApp", "Sin contacto",
+  "Enviadas sin respuesta") en una sola grilla filtrable y exportable.</p>
+
+  <div class="tiles">
+    <div class="tile warn"><b id="tile-sinenviar">0</b><small>sin enviar</small></div>
+    <div class="tile accent"><b id="tile-sinrespuesta">0</b><small>enviadas sin respuesta</small></div>
+    <div class="tile good"><b id="tile-respondidas">0</b><small>respondidas</small></div>
+  </div>
+
+  <div class="filters">
+    <input type="search" id="f-buscar" placeholder="Buscar por ID, cliente o trabajo...">
+    <select id="f-cliente"><option value="">Todos los clientes</option></select>
+    <select id="f-estado">
+      <option value="">Todos los estados</option>
+      <option value="pending_contact">Sin contacto</option>
+      <option value="scheduled">Programada</option>
+      <option value="ready">Lista (whatsapp)</option>
+      <option value="sent">Enviada sin respuesta</option>
+      <option value="responded">Respondida</option>
+    </select>
+    <input type="date" id="f-desde" title="Fecha desde">
+    <span class="date-sep">a</span>
+    <input type="date" id="f-hasta" title="Fecha hasta">
+    <button class="ghost" type="button" id="f-limpiar">Limpiar filtros</button>
+    <span class="count-note" id="count-note"></span>
+  </div>
+
+  <div class="export-row">
+    <details class="export-menu" id="export-menu">
+      <summary>⬇ Descargar <span class="caret">▾</span></summary>
+      <div class="export-panel">
+        <button type="button" id="export-csv">CSV</button>
+        <button type="button" id="export-xls">XLS</button>
+        <button type="button" id="export-pdf">PDF</button>
+      </div>
+    </details>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th><th>Cliente</th><th>Trabajo</th><th>Canal</th><th>Estado</th><th>Enviada</th><th>Encuesta</th>
+      </tr>
+    </thead>
+    <tbody id="rows-body"></tbody>
+  </table>
+  <p class="muted" style="margin-top:.6rem">
+    "Enviar" dispara lo mismo que hoy hace cada sección según el estado: si falta contacto, pide
+    email/WhatsApp antes de habilitar el envío; si ya tiene contacto, abre WhatsApp con el mensaje
+    armado o marca el envío por email. Una vez enviada, la fila pasa a "Enviado" (con "Reenviar" si
+    todavía no llegó al límite).
+  </p>
+  </div>
+
+  <div id="view-encuestas" hidden>
+    <div class="tiles">
+      <div class="tile"><b>100%</b><small>enviadas · 16 de 16</small></div>
+      <div class="tile"><b>69%</b><small>respondidas · 11 de 16</small></div>
+      <div class="tile"><b>73%</b><small>satisfacción (bueno + excelente)</small></div>
+      <div class="tile crit"><b>2</b><small>casos abiertos</small></div>
+    </div>
+    <div class="dist">
+      <div class="dist-bar" role="img" aria-label="Desglose: 3 insatisfecho, 4 bueno, 4 excelente">
+        <span style="flex:27.3;background:var(--status-crit)"></span>
+        <span style="flex:36.4;background:var(--status-warn)"></span>
+        <span style="flex:36.4;background:var(--status-good)"></span>
+      </div>
+      <div class="dist-legend">
+        <span><span class="chip crit"></span>Insatisfecho · 3</span>
+        <span><span class="chip warn"></span>Bueno · 4</span>
+        <span><span class="chip good"></span>Excelente · 4</span>
+      </div>
+    </div>
+
+    <h2>Crear encuesta</h2>
+    <p class="muted">Elegí el tipo de encuesta, el servicio y a qué clientes se la mandás.</p>
+    <div class="card">
+      <form id="create-survey-step1">
+        <div class="field-grid">
+          <div>
+            <label class="field-label" for="ce-tipo-encuesta">Tipo de encuesta</label>
+            <select id="ce-tipo-encuesta" style="width:100%">
+              <option value="nps">NPS</option>
+              <option value="resolucion">Resolución de caso</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="ce-tipo-servicio">Tipo de servicio</label>
+            <input id="ce-tipo-servicio" placeholder="ej: plomería" style="width:100%">
+          </div>
+        </div>
+
+        <label class="field-label" style="margin-top:1rem">Clientes</label>
+        <p class="muted" style="margin:.1rem 0 .6rem">Buscá entre los clientes ya cargados en la solapa Clientes, o escribí uno nuevo.</p>
+        <div class="row">
+          <div class="autocomplete-wrap">
+            <input id="ce-cliente-input" placeholder="Buscar cliente..." autocomplete="off" style="width:100%">
+            <div class="autocomplete-list" id="ce-cliente-suggestions" hidden></div>
+          </div>
+          <button type="button" id="ce-add-cliente">Agregar</button>
+          <button type="button" class="ghost" id="ce-import-xls">📄 Importar clientes (.xls)</button>
+          <input type="file" id="ce-xls-file" accept=".xls,.xlsx" hidden>
+        </div>
+        <div class="chip-list" id="ce-clientes-list"></div>
+        <p class="empty" id="ce-clientes-empty">Todavía no agregaste clientes.</p>
+
+        <div class="row" style="margin-top:1rem">
+          <button class="primary" type="submit">Crear encuesta</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="ce-step2" hidden></div>
+
+    <h2>Registro de encuestas</h2>
+    <div class="filters">
+      <select id="fe-status" aria-label="Estado">
+        <option value="">Todas</option>
+        <option value="enviadas">Enviadas</option>
+        <option value="respondidas">Respondidas</option>
+        <option value="pendientes">Pendientes de envío</option>
+      </select>
+      <select id="fe-type" aria-label="Tipo de servicio"></select>
+      <input id="fe-q" type="search" placeholder="Buscar por ID, cliente o trabajo…">
+      <button id="fe-csv">Exportar CSV</button>
+      <span class="count-note" id="fe-count-note"></span>
+    </div>
+    <div id="surveys-table-wrap"></div>
+  </div>
+
+  <div id="view-clientes" hidden></div>
+  <div id="view-cliente-detalle" hidden></div>
+  <div id="view-resultados" hidden></div>
+
+  <div id="toast" role="status"></div>
+
+  <script>
+    const STATUS_LABEL = {
+      pending_contact: 'Sin contacto', scheduled: 'Programada', ready: 'Lista (whatsapp)',
+      sent: 'Enviada sin respuesta', responded: 'Respondida',
+    };
+    const STATUS_CHIP = {
+      pending_contact: 'mutedc', scheduled: 'mutedc', ready: 'warn', sent: 'accent', responded: 'good',
+    };
+
+    // Datos de ejemplo (vista previa, sin backend).
+    let rows = [
+      { id: 'ENC-0017', code: 'ENC-0017', cliente: 'Nuevo Cliente', trabajo: 'T-1015', canal: '', estado: 'pending_contact', enviada: '', resendCount: 0, canAuto: false, rating: null },
+      { id: 'ENC-0016', code: 'ENC-0016', cliente: 'Prueba', trabajo: 'DIR-MRNN1NIO', canal: 'email', estado: 'scheduled', enviada: '', resendCount: 0, canAuto: true, rating: null },
+      { id: 'ENC-0015b', code: 'ENC-0015b', cliente: 'Ana García', trabajo: 'T-1016', canal: 'whatsapp', estado: 'ready', enviada: '', resendCount: 0, canAuto: false, rating: null },
+      { id: 'ENC-0015', code: 'ENC-0015', cliente: 'Ana García', trabajo: 'T-1014', canal: 'email', estado: 'sent', enviada: '15/07 15:56', resendCount: 1, canAuto: true, rating: null },
+      { id: 'ENC-0014', code: 'ENC-0014', cliente: 'Carla Paz', trabajo: 'T-1013', canal: 'email', estado: 'sent', enviada: '16/07 12:06', resendCount: 1, canAuto: true, rating: null },
+      { id: 'ENC-0013', code: 'ENC-0013', cliente: 'Beto Ruiz', trabajo: 'T-1012', canal: 'whatsapp', estado: 'sent', enviada: '16/07 11:39', resendCount: 0, canAuto: false, rating: null },
+      { id: 'ENC-0011', code: 'ENC-0011', cliente: 'Marta Ledesma', trabajo: 'T-1010', canal: 'whatsapp', estado: 'responded', enviada: '10/07 09:20', resendCount: 0, canAuto: false, rating: 'excelente' },
+    ];
+
+    function channelBadge(ch) {
+      if (!ch) return '<span class="muted">—</span>';
+      return `<span class="badge"><span class="chip ${ch === 'email' ? 'accent' : 'good'}"></span>${ch}</span>`;
+    }
+
+    function encuestaCell(r) {
+      if (r.estado === 'responded') {
+        return `<span class="badge"><span class="chip good"></span>Enviado</span>`;
+      }
+      if (r.estado === 'sent') {
+        const resendBtn = r.resendCount >= 1
+          ? '<span class="muted" style="font-size:.78rem">reenviada (límite: 1)</span>'
+          : r.canAuto
+            ? `<button class="small" data-resend="${r.id}">Reenviar</button>`
+            : `<button class="small" data-resend-wa="${r.id}">Reenviar WhatsApp</button>`;
+        return `<span class="badge"><span class="chip accent"></span>Enviado</span> ${resendBtn}`;
+      }
+      // pending_contact / scheduled / ready → sin enviar todavía
+      return `<span class="badge"><span class="chip warn"></span>Sin Enviar</span>
+        <button class="small primary" data-enviar="${r.id}">Enviar</button>`;
+    }
+
+    function populateClienteFilter() {
+      const sel = document.getElementById('f-cliente');
+      const clientes = [...new Set(rows.map(r => r.cliente))].sort();
+      sel.innerHTML = '<option value="">Todos los clientes</option>' +
+        clientes.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    function filteredRows() {
+      const buscar = document.getElementById('f-buscar').value.trim().toLowerCase();
+      const cliente = document.getElementById('f-cliente').value;
+      const estado = document.getElementById('f-estado').value;
+      return rows.filter(r => {
+        if (buscar && !`${r.code} ${r.cliente} ${r.trabajo}`.toLowerCase().includes(buscar)) return false;
+        if (cliente && r.cliente !== cliente) return false;
+        if (estado && r.estado !== estado) return false;
+        return true;
+      });
+    }
+
+    function renderTiles() {
+      document.getElementById('tile-sinenviar').textContent =
+        rows.filter(r => ['pending_contact', 'scheduled', 'ready'].includes(r.estado)).length;
+      document.getElementById('tile-sinrespuesta').textContent = rows.filter(r => r.estado === 'sent').length;
+      document.getElementById('tile-respondidas').textContent = rows.filter(r => r.estado === 'responded').length;
+    }
+
+    function renderTable() {
+      const visible = filteredRows();
+      const body = document.getElementById('rows-body');
+      body.innerHTML = visible.map(r => `
+        <tr data-id="${r.id}">
+          <td class="code">${r.code}</td>
+          <td>${r.cliente}</td>
+          <td class="code">${r.trabajo}</td>
+          <td>${channelBadge(r.canal)}</td>
+          <td><span class="badge"><span class="chip ${STATUS_CHIP[r.estado]}"></span>${STATUS_LABEL[r.estado]}</span></td>
+          <td class="num">${r.enviada || '—'}</td>
+          <td>${encuestaCell(r)}</td>
+        </tr>
+      `).join('');
+      document.getElementById('count-note').textContent = `${visible.length} de ${rows.length}`;
+      wireRowButtons();
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2400);
+    }
+
+    function wireRowButtons() {
+      document.querySelectorAll('[data-enviar]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const r = rows.find(x => x.id === btn.dataset.enviar);
+          if (r.estado === 'pending_contact') {
+            const tr = btn.closest('tr');
+            tr.querySelector('td:last-child').innerHTML = `
+              <form class="contact-row" data-contact-form="${r.id}">
+                <input name="email" type="email" placeholder="email@cliente.com">
+                <input name="phone" type="tel" placeholder="WhatsApp">
+                <button class="small primary" type="submit">Guardar y enviar</button>
+              </form>`;
+            tr.querySelector('form').addEventListener('submit', (e) => {
+              e.preventDefault();
+              r.estado = 'sent';
+              r.enviada = new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+              renderTiles(); renderTable();
+              showToast('Contacto guardado y encuesta enviada (vista previa)');
+            });
+            return;
+          }
+          r.estado = 'sent';
+          r.enviada = new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+          renderTiles();
+          renderTable();
+          showToast(r.canal === 'whatsapp' ? 'Se abriría WhatsApp con el mensaje armado (vista previa)' : 'Encuesta enviada (vista previa)');
+        });
+      });
+      document.querySelectorAll('[data-resend], [data-resend-wa]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.resend || btn.dataset.resendWa;
+          const r = rows.find(x => x.id === id);
+          r.resendCount += 1;
+          renderTable();
+          showToast('Reenvío registrado (vista previa)');
+        });
+      });
+    }
+
+    ['f-buscar', 'f-cliente', 'f-estado', 'f-desde', 'f-hasta'].forEach(id => {
+      document.getElementById(id).addEventListener('input', renderTable);
+      document.getElementById(id).addEventListener('change', renderTable);
+    });
+    document.getElementById('f-limpiar').addEventListener('click', () => {
+      document.getElementById('f-buscar').value = '';
+      document.getElementById('f-cliente').value = '';
+      document.getElementById('f-estado').value = '';
+      document.getElementById('f-desde').value = '';
+      document.getElementById('f-hasta').value = '';
+      renderTable();
+    });
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    }
+    function csvEscape(v) { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+    const EXPORT_COLS = [
+      { key: 'code', label: 'ID' }, { key: 'cliente', label: 'Cliente' }, { key: 'trabajo', label: 'Trabajo' },
+      { key: 'canal', label: 'Canal' }, { key: 'estado', label: 'Estado' }, { key: 'enviada', label: 'Enviada' },
+    ];
+    function exportCsv() {
+      const data = filteredRows();
+      const lines = [EXPORT_COLS.map(c => csvEscape(c.label)).join(',')];
+      data.forEach(r => lines.push(EXPORT_COLS.map(c => csvEscape(c.key === 'estado' ? STATUS_LABEL[r.estado] : r[c.key])).join(',')));
+      downloadBlob(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'encuestas.csv');
+      showToast('CSV descargado');
+    }
+    function exportXls() {
+      const data = filteredRows();
+      const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const head = '<tr>' + EXPORT_COLS.map(c => `<th>${esc(c.label)}</th>`).join('') + '</tr>';
+      const body = data.map(r => '<tr>' + EXPORT_COLS.map(c => `<td>${esc(c.key === 'estado' ? STATUS_LABEL[r.estado] : r[c.key])}</td>`).join('') + '</tr>').join('');
+      const html = `<html><head><meta charset="utf-8"></head><body><table border="1">${head}${body}</table></body></html>`;
+      downloadBlob(new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' }), 'encuestas.xls');
+      showToast('XLS descargado');
+    }
+    function exportPdf() {
+      showToast('PDF descargado (misma lógica que en Operador)');
+    }
+    const exportMenu = document.getElementById('export-menu');
+    document.getElementById('export-csv').addEventListener('click', () => { exportCsv(); exportMenu.open = false; });
+    document.getElementById('export-xls').addEventListener('click', () => { exportXls(); exportMenu.open = false; });
+    document.getElementById('export-pdf').addEventListener('click', () => { exportPdf(); exportMenu.open = false; });
+    document.addEventListener('click', (e) => {
+      if (exportMenu.open && !exportMenu.contains(e.target)) exportMenu.open = false;
+    });
+
+    renderTiles();
+    populateClienteFilter();
+    renderTable();
+
+    // ------------------------------------------------------ registro encuestas
+
+    const REG_STATUS_LABEL = {
+      pending_contact: 'sin contacto', scheduled: 'programada', ready: 'lista (whatsapp)',
+      sent: 'enviada', responded: 'respondida',
+    };
+
+    let surveySeq = 21;
+    let surveys = [
+      { code: 'ENC-0020', cliente: 'Cliente CSAT Test', job_ref: 'DIR-MRPDCWM0', job_type: 'electricidad', channel: '', estado: 'responded', sent_at: '17/7, 05:07 p. m.', responded_at: '17/7, 05:07 p. m.', rating: 'csat', score: 3 },
+      { code: 'ENC-0016', cliente: 'Prueba', job_ref: 'DIR-MRNN1NIO', job_type: 'Soporte', channel: 'email', estado: 'sent', sent_at: '16/7, 12:02 p. m.', responded_at: '', rating: null, score: null },
+      { code: 'ENC-0015', cliente: 'Ana García', job_ref: 'T-1014', job_type: 'pintura', channel: 'email', estado: 'sent', sent_at: '15/7, 03:56 p. m.', responded_at: '', rating: null, score: null },
+      { code: 'ENC-0014', cliente: 'Carla Paz', job_ref: 'T-1013', job_type: 'plomería', channel: 'email', estado: 'sent', sent_at: '16/7, 12:06 p. m.', responded_at: '', rating: null, score: null },
+      { code: 'ENC-0013', cliente: 'Beto Ruiz', job_ref: 'T-1012', job_type: 'pintura', channel: 'whatsapp', estado: 'sent', sent_at: '16/7, 11:39 a. m.', responded_at: '', rating: null, score: null },
+      { code: 'ENC-0012', cliente: 'Marta Ledesma', job_ref: 'T-1011', job_type: 'electricidad', channel: 'email', estado: 'sent', sent_at: '11/7, 03:56 p. m.', responded_at: '', rating: null, score: null },
+      { code: 'ENC-0011', cliente: 'Jorge Diaz', job_ref: 'T-1010', job_type: 'gasista', channel: 'whatsapp', estado: 'responded', sent_at: '10/7, 09:20 a. m.', responded_at: '10/7, 10:00 a. m.', rating: 'excelente', score: null },
+      { code: 'ENC-0010', cliente: 'Nuevo Cliente', job_ref: 'T-1009', job_type: 'plomería', channel: '', estado: 'pending_contact', sent_at: '', responded_at: '', rating: null, score: null },
+      { code: 'ENC-0009', cliente: 'Laura Paz', job_ref: 'T-1008', job_type: 'pintura', channel: 'whatsapp', estado: 'responded', sent_at: '8/7, 10:00 a. m.', responded_at: '8/7, 04:00 p. m.', rating: 'bueno', score: null },
+      { code: 'ENC-0008', cliente: 'Dario Sosa', job_ref: 'T-1007', job_type: 'pintura', channel: 'email', estado: 'responded', sent_at: '5/7, 09:00 a. m.', responded_at: '5/7, 11:00 a. m.', rating: 'insatisfecho', score: null },
+    ];
+
+    function ratingPill(s) {
+      if (s.rating === 'csat' && s.score) {
+        const cls = s.score >= 4 ? 'excelente' : s.score === 3 ? 'bueno' : 'insatisfecho';
+        const chip = s.score >= 4 ? 'good' : s.score === 3 ? 'warn' : 'crit';
+        return `<span class="rating-pill ${cls}"><span class="chip ${chip}"></span>CSAT ${s.score}/5</span>`;
+      }
+      if (s.rating) {
+        const chip = { insatisfecho: 'crit', bueno: 'warn', excelente: 'good' }[s.rating];
+        return `<span class="rating-pill ${s.rating}"><span class="chip ${chip}"></span>${s.rating}</span>`;
+      }
+      return '<span class="muted">—</span>';
+    }
+
+    function populateTypeFilter() {
+      const sel = document.getElementById('fe-type');
+      const current = sel.value;
+      const types = [...new Set(surveys.map((s) => s.job_type || '(sin tipo)'))].sort();
+      sel.innerHTML = '<option value="">Todos los tipos</option>' +
+        types.map((t) => `<option value="${t}">${t}</option>`).join('');
+      sel.value = current;
+    }
+
+    function filteredSurveys() {
+      const q = document.getElementById('fe-q').value.trim().toLowerCase();
+      const status = document.getElementById('fe-status').value;
+      const type = document.getElementById('fe-type').value;
+      return surveys.filter((s) => {
+        if (status === 'enviadas' && !['sent', 'responded'].includes(s.estado)) return false;
+        if (status === 'respondidas' && s.estado !== 'responded') return false;
+        if (status === 'pendientes' && !['pending_contact', 'scheduled', 'ready'].includes(s.estado)) return false;
+        if (type && (s.job_type || '(sin tipo)') !== type) return false;
+        if (q && ![s.code, s.cliente, s.job_ref, s.job_type].some((v) => (v || '').toLowerCase().includes(q))) return false;
+        return true;
+      });
+    }
+
+    function renderSurveysTable() {
+      const rows = filteredSurveys();
+      document.getElementById('fe-count-note').textContent = `${rows.length} de ${surveys.length}`;
+      const wrap = document.getElementById('surveys-table-wrap');
+      if (!rows.length) {
+        wrap.innerHTML = '<p class="empty">Nada que coincida con los filtros.</p>';
+        return;
+      }
+      wrap.innerHTML = `
+      <table>
+        <tr><th>ID</th><th>Cliente</th><th>Trabajo</th><th>Tipo</th><th>Canal</th><th>Estado</th><th>Enviada</th><th>Respondida</th><th>Resultado</th><th></th></tr>
+        ${rows.map((s) => `
+        <tr class="clickable" data-code="${s.code}">
+          <td class="code">${s.code}</td>
+          <td>${s.cliente}</td>
+          <td class="code">${s.job_ref}</td>
+          <td>${s.job_type || '—'}</td>
+          <td>${channelBadge(s.channel)}</td>
+          <td><span class="badge">${REG_STATUS_LABEL[s.estado]}</span></td>
+          <td class="num">${s.sent_at || '—'}</td>
+          <td class="num">${s.responded_at || '—'}</td>
+          <td>${ratingPill(s)}</td>
+          <td><a href="#" class="code" data-ver="${s.code}" onclick="event.stopPropagation();return false">ver →</a></td>
+        </tr>`).join('')}
+      </table>
+      <p class="muted">Click en la fila (o en "ver") abre el detalle de la encuesta y su resultado.</p>`;
+      wrap.querySelectorAll('tr.clickable').forEach((tr) => {
+        tr.addEventListener('click', () => renderEncuestaDetalle(tr.dataset.code));
+      });
+      wrap.querySelectorAll('[data-ver]').forEach((a) => {
+        a.addEventListener('click', () => renderEncuestaDetalle(a.dataset.ver));
+      });
+    }
+
+    function surveyAnswersSummary(s) {
+      if (s.estado !== 'responded') return [];
+      if (s.rating === 'csat' && s.score != null) {
+        return [{ q: '¿Cómo calificarías la atención recibida?', a: `${s.score} / 5` }];
+      }
+      if (s.rating) {
+        const label = { insatisfecho: 'Insatisfecho', bueno: 'Bueno', excelente: 'Excelente' }[s.rating] || s.rating;
+        return [{ q: '¿Cómo fue tu experiencia con el servicio?', a: label }];
+      }
+      return [];
+    }
+
+    function renderEncuestaDetalle(code) {
+      const s = surveys.find((x) => x.code === code);
+      if (!s) return;
+      const wrap = document.getElementById('surveys-table-wrap');
+      const answers = surveyAnswersSummary(s);
+      wrap.innerHTML = `
+        <button type="button" class="ghost" id="encuesta-volver">← Volver a Encuestas</button>
+        <div class="card" style="border-left:4px solid var(--accent);margin-top:.6rem">
+          <span class="who">${s.code}</span> · <span class="who">${s.cliente}</span>
+          <span class="muted">trabajo ${s.job_ref}${s.job_type ? ' · ' + s.job_type : ''} · ${channelBadge(s.channel)}</span>
+
+          <div class="row">
+            <span class="badge">${REG_STATUS_LABEL[s.estado]}</span>
+            <span class="muted">enviada ${s.sent_at || '—'}</span>
+            ${s.responded_at ? `<span class="muted">· respondida ${s.responded_at}</span>` : ''}
+          </div>
+
+          <label class="field-label" style="margin-top:1.1rem">Resultado</label>
+          ${s.estado === 'responded' ? `
+            <div class="row">${ratingPill(s)}</div>
+            ${answers.length ? answers.map((a) => `
+              <div class="question-item">
+                <div class="muted">${a.q}</div>
+                <div style="margin-top:.3rem;font-weight:600">${a.a}</div>
+              </div>`).join('') : ''}
+          ` : '<p class="empty">Todavía no respondió esta encuesta.</p>'}
+        </div>`;
+      document.getElementById('encuesta-volver').addEventListener('click', (e) => {
+        e.preventDefault();
+        renderSurveysTable();
+      });
+    }
+
+    function exportSurveysCsv() {
+      const cols = [
+        { key: 'code', label: 'id' }, { key: 'cliente', label: 'cliente' }, { key: 'job_ref', label: 'trabajo' },
+        { key: 'job_type', label: 'tipo' }, { key: 'channel', label: 'canal' }, { key: 'estado', label: 'estado' },
+        { key: 'sent_at', label: 'enviada' }, { key: 'responded_at', label: 'respondida' },
+      ];
+      const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const lines = [cols.map((c) => c.label).join(',')];
+      filteredSurveys().forEach((s) => lines.push(cols.map((c) => cell(c.key === 'estado' ? REG_STATUS_LABEL[s.estado] : s[c.key])).join(',')));
+      downloadBlob(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'encuestas.csv');
+      showToast('CSV descargado');
+    }
+
+    // ---- Base de clientes (la misma que alimenta la solapa Clientes) ----
+
+    const CLIENTES_DB = [
+      { name: 'Ana García', email: 'ana.garcia@mail.com', phone: '', empresa: '', trabajos: 2 },
+      { name: 'Carla Paz', email: 'carla.paz@mail.com', phone: '', empresa: '', trabajos: 1 },
+      { name: 'Beto Ruiz', email: '', phone: '5491122334455', empresa: '', trabajos: 1 },
+      { name: 'Marta Ledesma', email: 'marta.ledesma@mail.com', phone: '', empresa: '', trabajos: 3 },
+      { name: 'Jorge Diaz', email: '', phone: '5491133445566', empresa: '', trabajos: 1 },
+      { name: 'Laura Paz', email: '', phone: '5491144556677', empresa: '', trabajos: 2 },
+      { name: 'Dario Sosa', email: 'dario@mail.com', phone: '', empresa: '', trabajos: 4 },
+      { name: 'Cliente CSAT Test', email: 'csat.test@mail.com', phone: '', empresa: 'Clínica San Justo', trabajos: 1 },
+      { name: 'Nuevo Cliente', email: '', phone: '', empresa: '', trabajos: 0 },
+    ];
+
+    // ---- Crear encuesta: paso 1 (tipo + servicio + clientes) ----
+
+    let ceClientes = []; // { name, email, phone, imported }
+
+    function renderClientesList() {
+      const wrap = document.getElementById('ce-clientes-list');
+      document.getElementById('ce-clientes-empty').style.display = ceClientes.length ? 'none' : 'block';
+      wrap.innerHTML = ceClientes.map((c, i) => `
+        <span class="chip-item">${c.name}${c.imported ? ' <span class="muted">(xls)</span>' : ''}
+          <button type="button" data-remove-cliente="${i}" aria-label="Quitar cliente">✕</button>
+        </span>`).join('');
+      wrap.querySelectorAll('[data-remove-cliente]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          ceClientes.splice(Number(btn.dataset.removeCliente), 1);
+          renderClientesList();
+        });
+      });
+    }
+
+    function addCliente(name, email = '', phone = '') {
+      name = (name || '').trim();
+      if (!name) return;
+      if (ceClientes.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+        showToast('Ese cliente ya está en la lista.');
+        return;
+      }
+      ceClientes.push({ name, email, phone, imported: false });
+      renderClientesList();
+    }
+
+    function renderClienteSuggestions() {
+      const input = document.getElementById('ce-cliente-input');
+      const list = document.getElementById('ce-cliente-suggestions');
+      const q = input.value.trim().toLowerCase();
+      if (!q) { list.hidden = true; list.innerHTML = ''; list._matches = []; return; }
+      const already = new Set(ceClientes.map((c) => c.name.toLowerCase()));
+      const matches = CLIENTES_DB.filter((c) => c.name.toLowerCase().includes(q) && !already.has(c.name.toLowerCase())).slice(0, 6);
+      list._matches = matches;
+      if (!matches.length) { list.hidden = true; list.innerHTML = ''; return; }
+      list.innerHTML = matches.map((c, i) => `
+        <div class="autocomplete-item${i === 0 ? ' active' : ''}" data-suggest-index="${i}">
+          <span>${c.name}</span><span class="muted">${c.email || (c.phone ? '+' + c.phone : 'sin contacto')}</span>
+        </div>`).join('');
+      list.hidden = false;
+      list.querySelectorAll('.autocomplete-item').forEach((item) => {
+        item.addEventListener('mousedown', (e) => {
+          e.preventDefault(); // evita el blur del input antes del click
+          const c = matches[Number(item.dataset.suggestIndex)];
+          addCliente(c.name, c.email, c.phone);
+          input.value = '';
+          list.hidden = true;
+        });
+      });
+    }
+
+    document.getElementById('ce-add-cliente').addEventListener('click', () => {
+      const input = document.getElementById('ce-cliente-input');
+      addCliente(input.value.trim());
+      input.value = '';
+      document.getElementById('ce-cliente-suggestions').hidden = true;
+    });
+    document.getElementById('ce-cliente-input').addEventListener('input', renderClienteSuggestions);
+    document.getElementById('ce-cliente-input').addEventListener('focus', renderClienteSuggestions);
+    document.getElementById('ce-cliente-input').addEventListener('blur', () => {
+      setTimeout(() => { document.getElementById('ce-cliente-suggestions').hidden = true; }, 120);
+    });
+    document.getElementById('ce-cliente-input').addEventListener('keydown', (e) => {
+      const input = e.target;
+      const list = document.getElementById('ce-cliente-suggestions');
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!list.hidden && list._matches && list._matches.length) {
+          const c = list._matches[0];
+          addCliente(c.name, c.email, c.phone);
+        } else {
+          addCliente(input.value.trim());
+        }
+        input.value = '';
+        list.hidden = true;
+      } else if (e.key === 'Escape') {
+        list.hidden = true;
+      }
+    });
+
+    document.getElementById('ce-import-xls').addEventListener('click', () => document.getElementById('ce-xls-file').click());
+    document.getElementById('ce-xls-file').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      // Vista previa: no se parsea el archivo real. En la app final esto
+      // se procesaría en el servidor y traería nombre + email/whatsapp.
+      const demo = ['Cliente Importado A', 'Cliente Importado B', 'Cliente Importado C'];
+      demo.forEach((name, i) => ceClientes.push({ name, email: `cliente${i + 1}@importado.com`, phone: '', imported: true }));
+      renderClientesList();
+      showToast(`${demo.length} clientes importados desde "${file.name}" (simulado en vista previa)`);
+      e.target.value = '';
+    });
+
+    const NPS_QUESTIONS = [
+      { q: 'En una escala de 0 a 10, ¿qué tan probable es que nos recomiendes a un amigo o colega?', type: 'escala 0–10' },
+      { q: '¿Por qué elegiste esa puntuación?', type: 'texto abierto' },
+    ];
+    const RESOLUCION_QUESTIONS = [
+      { q: '¿Tu problema quedó resuelto?', type: 'sí / no' },
+      { q: '¿Cómo calificarías la atención recibida?', type: 'escala 1–5' },
+    ];
+    const QUESTION_TYPES = ['escala 0–10', 'escala 1–5', 'sí / no', 'texto abierto'];
+
+    let ceQuestions = [];
+
+    function npsScaleWidget() {
+      return `
+        <div class="nps-scale" data-nps-scale>
+          <div class="nps-scale-row">
+            ${Array.from({ length: 11 }, (_, n) => `<button type="button" class="nps-dot" data-nps-value="${n}">${n}</button>`).join('')}
+          </div>
+          <div class="nps-scale-labels"><span>Nada probable</span><span>Muy probable</span></div>
+        </div>`;
+    }
+
+    function renderQuestionsList() {
+      const wrap = document.getElementById('ce-questions-list');
+      wrap.innerHTML = ceQuestions.map((q, i) => `
+        <div class="question-item">
+          <div class="row">
+            <input value="${q.q}" data-question-text="${i}" placeholder="Texto de la pregunta" style="flex:1;min-width:220px">
+            <select data-question-type="${i}">
+              ${QUESTION_TYPES.map((t) => `<option value="${t}" ${t === q.type ? 'selected' : ''}>${t}</option>`).join('')}
+            </select>
+            <button type="button" class="ghost small" data-remove-question="${i}" aria-label="Quitar pregunta">✕</button>
+          </div>
+          ${q.type === 'escala 0–10' ? npsScaleWidget() : ''}
+        </div>`).join('');
+
+      wrap.querySelectorAll('[data-question-text]').forEach((input) => {
+        input.addEventListener('input', () => { ceQuestions[Number(input.dataset.questionText)].q = input.value; });
+      });
+      wrap.querySelectorAll('[data-question-type]').forEach((sel) => {
+        sel.addEventListener('change', () => {
+          ceQuestions[Number(sel.dataset.questionType)].type = sel.value;
+          renderQuestionsList();
+        });
+      });
+      wrap.querySelectorAll('[data-remove-question]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          if (ceQuestions.length <= 1) { showToast('Debe quedar al menos una pregunta.'); return; }
+          ceQuestions.splice(Number(btn.dataset.removeQuestion), 1);
+          renderQuestionsList();
+        });
+      });
+      wrap.querySelectorAll('[data-nps-value]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          btn.closest('[data-nps-scale]').querySelectorAll('.nps-dot').forEach((b) => b.classList.remove('selected'));
+          btn.classList.add('selected');
+        });
+      });
+    }
+
+    document.getElementById('create-survey-step1').addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!ceClientes.length) { showToast('Agregá al menos un cliente.'); return; }
+      const tipoEncuesta = document.getElementById('ce-tipo-encuesta').value;
+      const tipoServicio = document.getElementById('ce-tipo-servicio').value.trim();
+      ceQuestions = (tipoEncuesta === 'nps' ? NPS_QUESTIONS : RESOLUCION_QUESTIONS).map((q) => ({ ...q }));
+
+      const step2 = document.getElementById('ce-step2');
+      step2.hidden = false;
+      step2.innerHTML = `
+        <div class="card" style="border-left:4px solid var(--accent)">
+          <span class="who">${tipoEncuesta === 'nps' ? 'NPS' : 'Resolución de caso'}</span>
+          <span class="muted">para ${ceClientes.length} cliente${ceClientes.length > 1 ? 's' : ''}${tipoServicio ? ' · ' + tipoServicio : ''}</span>
+
+          <label class="field-label" style="margin-top:1rem">Preguntas</label>
+          <div id="ce-questions-list"></div>
+          <div class="row" style="margin-top:.6rem">
+            <button type="button" class="ghost" id="ce-add-question">+ Agregar pregunta</button>
+          </div>
+
+          <label class="field-label" style="margin-top:1rem">Observaciones</label>
+          <textarea id="ce-observaciones" placeholder="Notas internas sobre este envío..."></textarea>
+
+          <div class="row" style="margin-top:1.2rem">
+            <a class="wa" href="#" id="ce-obtener-link">Obtener link para WhatsApp</a>
+            <button type="button" id="ce-enviar-mail">Enviar encuesta por mail</button>
+          </div>
+          <div id="ce-result-cards"></div>
+        </div>`;
+
+      renderQuestionsList();
+      document.getElementById('ce-add-question').addEventListener('click', () => {
+        ceQuestions.push({ q: '', type: 'escala 0–10' });
+        renderQuestionsList();
+      });
+      document.getElementById('ce-obtener-link').addEventListener('click', (ev) => {
+        ev.preventDefault();
+        finalizeCreateEncuesta('whatsapp');
+      });
+      document.getElementById('ce-enviar-mail').addEventListener('click', () => finalizeCreateEncuesta('email'));
+
+      step2.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+
+    function finalizeCreateEncuesta(channelPref) {
+      const tipoServicio = document.getElementById('ce-tipo-servicio').value.trim();
+      const results = ceClientes.map((c) => {
+        const code = `ENC-${String(surveySeq++).padStart(4, '0')}`;
+        const url = `https://maquina-encuestas.vercel.app/s/${Array.from({ length: 24 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+        const channel = channelPref === 'email' ? 'email' : (c.phone ? 'whatsapp' : (c.imported ? 'email' : 'whatsapp'));
+        const yaEnviada = channelPref === 'email';
+        surveys.unshift({
+          code, cliente: c.name, job_ref: '—', job_type: tipoServicio,
+          channel, estado: yaEnviada ? 'sent' : 'ready',
+          sent_at: yaEnviada ? new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '',
+          responded_at: '', rating: null, score: null,
+        });
+        return { code, name: c.name, url };
+      });
+
+      document.getElementById('ce-result-cards').innerHTML = results.map((r) => `
+        <div class="row">
+          <span class="who">${r.code}</span> <span class="muted">${r.name}</span>
+          <input readonly value="${r.url}" style="flex:1;min-width:200px" onclick="this.select()">
+          <button type="button" data-copy-link="${r.url}">Copiar link</button>
+        </div>`).join('');
+      document.getElementById('ce-result-cards').querySelectorAll('[data-copy-link]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try { await navigator.clipboard.writeText(btn.dataset.copyLink); showToast('Link copiado.'); }
+          catch { showToast('No se pudo copiar: seleccioná el link y copialo a mano.'); }
+        });
+      });
+
+      populateTypeFilter();
+      renderSurveysTable();
+      renderClientesTab();
+      showToast(channelPref === 'email'
+        ? `Encuesta enviada por mail a ${results.length} cliente(s) (vista previa)`
+        : `Link${results.length > 1 ? 's' : ''} de WhatsApp listo(s) para ${results.length} cliente(s)`);
+    }
+
+    // ---- Solapa Clientes: agregada a partir del registro de encuestas ----
+
+    function clienteSentiment(c) {
+      const { insatisfecho, bueno, excelente } = c;
+      if (!insatisfecho && !bueno && !excelente) return null;
+      if (insatisfecho >= bueno && insatisfecho >= excelente) return 'detractor';
+      if (excelente >= bueno) return 'promotor';
+      return 'neutro';
+    }
+
+    function sentimentBadge(c) {
+      const s = clienteSentiment(c);
+      if (!s) return '<span class="muted">—</span>';
+      const label = { promotor: 'PROMOTOR', neutro: 'NEUTRO', detractor: 'DETRACTOR' }[s];
+      return `<span class="sentiment-pill ${s}">${label}</span>`;
+    }
+
+    function clientesAggregados() {
+      const byName = new Map();
+      CLIENTES_DB.forEach((c) => byName.set(c.name, {
+        name: c.name, email: c.email, phone: c.phone, empresa: c.empresa || '', trabajos: c.trabajos || 0,
+        encuestas: 0, respondidas: 0, insatisfecho: 0, bueno: 0, excelente: 0, ultimo: '',
+      }));
+      surveys.forEach((s) => {
+        if (!byName.has(s.cliente)) {
+          byName.set(s.cliente, { name: s.cliente, email: '', phone: '', empresa: '', trabajos: 0, encuestas: 0, respondidas: 0, insatisfecho: 0, bueno: 0, excelente: 0, ultimo: '' });
+        }
+        const c = byName.get(s.cliente);
+        c.encuestas++;
+        if (s.estado === 'responded') {
+          c.respondidas++;
+          if (s.rating === 'insatisfecho') c.insatisfecho++;
+          else if (s.rating === 'bueno') c.bueno++;
+          else if (s.rating === 'excelente') c.excelente++;
+          else if (s.rating === 'csat' && s.score) {
+            if (s.score >= 4) c.excelente++;
+            else if (s.score === 3) c.bueno++;
+            else c.insatisfecho++;
+          }
+        }
+        if (s.sent_at) c.ultimo = s.sent_at;
+      });
+      return [...byName.values()].sort((a, b) => b.encuestas - a.encuestas);
+    }
+
+    function renderClientesTab() {
+      const rows = clientesAggregados();
+      document.getElementById('view-clientes').innerHTML = `
+        <h2>Clientes</h2>
+        <p class="muted">Esta es la base que alimenta el buscador de "Crear encuesta".</p>
+
+        <div class="card">
+          <label class="field-label">Agregar cliente</label>
+          <form id="add-cliente-form">
+            <div class="field-grid">
+              <input name="name" placeholder="Cliente" required>
+              <input name="email" type="email" placeholder="Email (opcional)">
+              <input name="phone" type="tel" placeholder="WhatsApp (opcional)">
+              <input name="empresa" placeholder="Empresa (opcional)">
+              <input name="trabajos" type="number" min="0" placeholder="Cantidad de trabajos">
+            </div>
+            <div class="row" style="margin-top:.7rem">
+              <button class="primary" type="submit">Agregar cliente</button>
+              <button type="button" class="ghost" id="import-clientes-csv">📄 Importar clientes (.csv)</button>
+              <input type="file" id="clientes-csv-file" accept=".csv" hidden>
+            </div>
+            <p class="muted" style="margin-top:.5rem">
+              El .csv debe tener encabezados: <code>nombre,email,telefono,empresa,trabajos</code>.
+            </p>
+          </form>
+        </div>
+
+        ${rows.length ? `
+        <table>
+          <tr><th>Cliente</th><th>Contacto</th><th>Empresa</th><th>Cant. trabajos</th><th>Encuestas</th><th>Respondidas</th><th>% resp.</th><th>Sentiment</th><th>Último mov.</th></tr>
+          ${rows.map((c) => `
+          <tr class="clickable" data-cliente="${c.name}">
+            <td>${c.name}${c.insatisfecho >= 2 ? ' <span class="rating-pill insatisfecho">en riesgo</span>' : ''}</td>
+            <td>${c.email ? c.email : (c.phone ? '+' + c.phone : '<span class="muted">sin datos</span>')}</td>
+            <td>${c.empresa || '<span class="muted">—</span>'}</td>
+            <td class="num">${c.trabajos}</td>
+            <td class="num">${c.encuestas}</td>
+            <td class="num">${c.respondidas}</td>
+            <td class="num">${c.encuestas ? Math.round((c.respondidas / c.encuestas) * 100) : 0}%</td>
+            <td>${sentimentBadge(c)}</td>
+            <td class="num">${c.ultimo || '—'}</td>
+          </tr>`).join('')}
+        </table>` : '<p class="empty">Todavía no hay clientes.</p>'}`;
+
+      document.querySelectorAll('#view-clientes tr[data-cliente]').forEach((tr) => {
+        tr.addEventListener('click', () => openClienteDetalle(tr.dataset.cliente));
+      });
+
+      document.getElementById('add-cliente-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target));
+        const name = data.name?.trim();
+        if (!name) { showToast('Completá el nombre del cliente.'); return; }
+        if (CLIENTES_DB.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+          showToast('Ya existe un cliente con ese nombre.');
+          return;
+        }
+        CLIENTES_DB.push({
+          name, email: data.email?.trim() || '', phone: data.phone?.trim() || '',
+          empresa: data.empresa?.trim() || '', trabajos: parseInt(data.trabajos, 10) || 0,
+        });
+        renderClientesTab();
+        showToast(`${name} agregado.`);
+      });
+
+      document.getElementById('import-clientes-csv').addEventListener('click', () => document.getElementById('clientes-csv-file').click());
+      document.getElementById('clientes-csv-file').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const parsed = parseCsv(String(reader.result));
+          let added = 0;
+          parsed.forEach((row) => {
+            const name = (row['nombre'] || row['cliente'] || '').trim();
+            if (!name) return;
+            if (CLIENTES_DB.some((c) => c.name.toLowerCase() === name.toLowerCase())) return;
+            CLIENTES_DB.push({
+              name,
+              email: (row['email'] || row['mail'] || '').trim(),
+              phone: (row['telefono'] || row['whatsapp'] || row['phone'] || '').trim(),
+              empresa: (row['empresa'] || '').trim(),
+              trabajos: parseInt(row['trabajos'] || row['cantidad_trabajos'] || row['cantidad de trabajos'] || '0', 10) || 0,
+            });
+            added++;
+          });
+          renderClientesTab();
+          showToast(added ? `${added} cliente(s) importado(s) desde "${file.name}".` : 'No se encontraron filas válidas en el CSV.');
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+      });
+    }
+
+    // ---- Ficha de cliente: historial de casos, encuestas y trabajos ----
+
+    function casosDeCliente(name) {
+      return surveys.filter((s) => s.cliente === name && s.estado === 'responded' && (
+        s.rating === 'insatisfecho' || (s.rating === 'csat' && s.score != null && s.score <= 2)
+      ));
+    }
+
+    function trabajosDeCliente(name) {
+      return surveys.filter((s) => s.cliente === name && s.job_ref && s.job_ref !== '—');
+    }
+
+    function openClienteDetalle(name) {
+      const cliente = clientesAggregados().find((c) => c.name === name);
+      if (!cliente) return;
+      const misEncuestas = surveys.filter((s) => s.cliente === name);
+      const misCasos = casosDeCliente(name);
+      const misTrabajos = trabajosDeCliente(name);
+      const pctResp = cliente.encuestas ? Math.round((cliente.respondidas / cliente.encuestas) * 100) : 0;
+
+      document.getElementById('view-clientes').hidden = true;
+      const detalle = document.getElementById('view-cliente-detalle');
+      detalle.hidden = false;
+      detalle.innerHTML = `
+        <a class="back-link" href="#" id="cliente-volver">← Volver a Clientes</a>
+        <header style="margin-top:.3rem">
+          <h1 style="font-size:1.35rem">${name}${cliente.insatisfecho >= 2 ? ' <span class="rating-pill insatisfecho">en riesgo</span>' : ''}</h1>
+          <p class="muted">
+            ${cliente.email || (cliente.phone ? '+' + cliente.phone : 'sin datos de contacto')}
+            ${cliente.empresa ? ' · ' + cliente.empresa : ''}
+          </p>
+        </header>
+
+        <div class="tiles">
+          <div class="tile"><b>${cliente.encuestas}</b><small>encuestas · ${cliente.respondidas} respondidas</small></div>
+          <div class="tile accent"><b>${pctResp}%</b><small>% respondidas</small></div>
+          <div class="tile ${misCasos.length ? 'crit' : ''}"><b>${misCasos.length}</b><small>casos por insatisfacción</small></div>
+        </div>
+
+        <h2>Casos</h2>
+        ${misCasos.length ? misCasos.map((s) => `
+          <div class="card case-open">
+            <span class="who">${s.code}</span> ${ratingPill(s)}
+            <span class="muted">trabajo ${s.job_ref}${s.job_type ? ' · ' + s.job_type : ''} · respondió ${s.responded_at || '—'}</span>
+          </div>`).join('') : '<p class="empty">Sin casos de insatisfacción registrados.</p>'}
+
+        <h2>Encuestas</h2>
+        ${misEncuestas.length ? `
+        <table>
+          <tr><th>ID</th><th>Trabajo</th><th>Tipo</th><th>Canal</th><th>Estado</th><th>Enviada</th><th>Respondida</th><th>Resultado</th></tr>
+          ${misEncuestas.map((s) => `
+          <tr>
+            <td class="code">${s.code}</td>
+            <td class="code">${s.job_ref}</td>
+            <td>${s.job_type || '—'}</td>
+            <td>${channelBadge(s.channel)}</td>
+            <td><span class="badge">${REG_STATUS_LABEL[s.estado]}</span></td>
+            <td class="num">${s.sent_at || '—'}</td>
+            <td class="num">${s.responded_at || '—'}</td>
+            <td>${ratingPill(s)}</td>
+          </tr>`).join('')}
+        </table>` : '<p class="empty">Todavía no se le mandó ninguna encuesta.</p>'}
+
+        <h2>Trabajos realizados</h2>
+        ${misTrabajos.length ? `
+        <table>
+          <tr><th>Trabajo</th><th>Tipo</th><th>Fecha</th></tr>
+          ${misTrabajos.map((s) => `
+          <tr>
+            <td class="code">${s.job_ref}</td>
+            <td>${s.job_type || '—'}</td>
+            <td class="num">${s.sent_at || '—'}</td>
+          </tr>`).join('')}
+        </table>` : '<p class="empty">Sin trabajos con número asignado todavía.</p>'}`;
+
+      document.getElementById('cliente-volver').addEventListener('click', (e) => {
+        e.preventDefault();
+        detalle.hidden = true;
+        document.getElementById('view-clientes').hidden = false;
+      });
+
+      detalle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function parseCsv(text) {
+      const lines = text.split(/\r\n|\n|\r/).filter((l) => l.trim().length);
+      if (!lines.length) return [];
+      const splitLine = (line) => {
+        const out = [];
+        let cur = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (inQuotes) {
+            if (ch === '"') {
+              if (line[i + 1] === '"') { cur += '"'; i++; }
+              else inQuotes = false;
+            } else cur += ch;
+          } else if (ch === '"') inQuotes = true;
+          else if (ch === ',') { out.push(cur); cur = ''; }
+          else cur += ch;
+        }
+        out.push(cur);
+        return out.map((s) => s.trim());
+      };
+      const header = splitLine(lines[0]).map((h) => h.toLowerCase().trim());
+      return lines.slice(1).map((line) => {
+        const cells = splitLine(line);
+        const row = {};
+        header.forEach((h, i) => { row[h] = cells[i] ?? ''; });
+        return row;
+      });
+    }
+
+    renderClientesList();
+
+    ['fe-status', 'fe-type', 'fe-q'].forEach((id) => {
+      document.getElementById(id).addEventListener('input', renderSurveysTable);
+      document.getElementById(id).addEventListener('change', renderSurveysTable);
+    });
+    document.getElementById('fe-csv').addEventListener('click', exportSurveysCsv);
+
+    populateTypeFilter();
+    renderSurveysTable();
+    renderClientesTab();
+
+    // ------------------------------------------------------------ navegación
+    document.querySelectorAll('.tabs a[data-view]').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.tabs a[data-view]').forEach(a => a.removeAttribute('aria-current'));
+        link.setAttribute('aria-current', 'page');
+        ['administracion', 'encuestas', 'clientes', 'resultados'].forEach(v => {
+          document.getElementById(`view-${v}`).hidden = v !== link.dataset.view;
+        });
+        document.getElementById('view-cliente-detalle').hidden = true;
+        if (link.dataset.view === 'encuestas') renderSurveysTable();
+      });
+    });
+  </script>
+</body>
+</html>

@@ -111,22 +111,6 @@
       opacity: .92;
       background: var(--accent);
     }
-    .role-btn[disabled] {
-      cursor: not-allowed;
-      opacity: .5;
-    }
-    .role-btn[disabled]:hover {
-      transform: none;
-      border-color: var(--hairline);
-      background: var(--raised);
-    }
-    .tag {
-      font-size: .68rem;
-      font-weight: 600;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: .04em;
-    }
   </style>
 </head>
 <body>
@@ -136,9 +120,7 @@
     <div class="options">
       <a class="role-btn primary" href="https://maquina-encuestas.vercel.app/app#operacion">ADMINISTRADOR</a>
       <a class="role-btn" href="https://claude.ai/code/artifact/1fa11dd1-c15f-4ae0-ab26-d1052bdfa308">GESTOR DE CASOS</a>
-      <button class="role-btn" type="button" disabled title="Todavía no tiene proceso asignado">
-        OPERADOR <span class="tag">próximamente</span>
-      </button>
+      <a class="role-btn" href="operador.html">OPERADOR</a>
     </div>
   </div>
 </body>
