@@ -85,31 +85,24 @@
       padding: 1.1rem .9rem;
       border-radius: 12px;
       border: 1px solid var(--hairline);
-      background: var(--raised);
+      background: var(--hairline);
       color: var(--ink);
       font-size: .98rem;
       font-weight: 600;
       letter-spacing: .01em;
       cursor: pointer;
       text-decoration: none;
-      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+      transition: transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease;
     }
     @media (max-width: 560px) {
       .options { flex-direction: column; }
     }
-    .role-btn:hover {
+    .role-btn:hover,
+    .role-btn:focus-visible {
       border-color: var(--accent);
-      background: var(--accent-wash);
-      transform: translateY(-1px);
-    }
-    .role-btn.primary {
       background: var(--accent);
       color: var(--accent-ink);
-      border-color: var(--accent);
-    }
-    .role-btn.primary:hover {
-      opacity: .92;
-      background: var(--accent);
+      transform: translateY(-1px);
     }
   </style>
 </head>
@@ -120,7 +113,7 @@
     <div class="options">
       <a class="role-btn" href="operador.html">OPERADOR</a>
       <a class="role-btn" href="gestor-casos-preview.html">GESTOR DE CASOS</a>
-      <a class="role-btn primary" href="administrador-preview.html">ADMINISTRADOR</a>
+      <a class="role-btn" href="administrador-preview.html">ADMINISTRADOR</a>
     </div>
   </div>
 </body>
