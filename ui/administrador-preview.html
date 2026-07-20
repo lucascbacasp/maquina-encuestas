@@ -299,7 +299,7 @@
     </div>
 
     <h2>Crear encuesta</h2>
-    <p class="muted">Elegí el tipo de encuesta, el servicio y a qué clientes se la mandás.</p>
+    <p class="muted">Elegí el tipo de encuesta y el servicio, y guardalo como template para asignarlo después.</p>
     <div class="card">
       <form id="create-survey-step1">
         <div class="field-grid">
@@ -314,21 +314,11 @@
             <label class="field-label" for="ce-tipo-servicio">Tipo de servicio</label>
             <input id="ce-tipo-servicio" placeholder="ej: plomería" style="width:100%">
           </div>
-        </div>
-
-        <label class="field-label" style="margin-top:1rem">Clientes</label>
-        <p class="muted" style="margin:.1rem 0 .6rem">Buscá entre los clientes ya cargados en la solapa Clientes, o escribí uno nuevo.</p>
-        <div class="row">
-          <div class="autocomplete-wrap">
-            <input id="ce-cliente-input" placeholder="Buscar cliente..." autocomplete="off" style="width:100%">
-            <div class="autocomplete-list" id="ce-cliente-suggestions" hidden></div>
+          <div>
+            <label class="field-label" for="ce-template-nombre">Nombre de template</label>
+            <input id="ce-template-nombre" placeholder="ej: NPS post-pintura" style="width:100%" required>
           </div>
-          <button type="button" id="ce-add-cliente">Agregar</button>
-          <button type="button" class="ghost" id="ce-import-xls">📄 Importar clientes (.xls)</button>
-          <input type="file" id="ce-xls-file" accept=".xls,.xlsx" hidden>
         </div>
-        <div class="chip-list" id="ce-clientes-list"></div>
-        <p class="empty" id="ce-clientes-empty">Todavía no agregaste clientes.</p>
 
         <div class="row" style="margin-top:1rem">
           <button class="primary" type="submit">Crear encuesta</button>
@@ -337,6 +327,34 @@
     </div>
 
     <div id="ce-step2" hidden></div>
+
+    <h2>Asignar encuesta</h2>
+    <p class="muted">Elegí un template ya creado y a qué clientes se lo mandás.</p>
+    <div class="card">
+      <label class="field-label" for="ae-template">Template</label>
+      <select id="ae-template" style="width:100%"><option value="">Todavía no hay templates creados</option></select>
+      <p class="muted" id="ae-template-info" style="margin-top:.4rem"></p>
+
+      <label class="field-label" style="margin-top:1rem">Clientes</label>
+      <p class="muted" style="margin:.1rem 0 .6rem">Buscá entre los clientes ya cargados en la solapa Clientes, o escribí uno nuevo.</p>
+      <div class="row">
+        <div class="autocomplete-wrap">
+          <input id="ae-cliente-input" placeholder="Buscar cliente..." autocomplete="off" style="width:100%">
+          <div class="autocomplete-list" id="ae-cliente-suggestions" hidden></div>
+        </div>
+        <button type="button" id="ae-add-cliente">Agregar</button>
+        <button type="button" class="ghost" id="ae-import-xls">📄 Importar clientes (.xls)</button>
+        <input type="file" id="ae-xls-file" accept=".xls,.xlsx" hidden>
+      </div>
+      <div class="chip-list" id="ae-clientes-list"></div>
+      <p class="empty" id="ae-clientes-empty">Todavía no agregaste clientes.</p>
+
+      <div class="row" style="margin-top:1.2rem">
+        <a class="wa" href="#" id="ae-obtener-link">Obtener link para WhatsApp</a>
+        <button type="button" id="ae-enviar-mail">Enviar encuesta por mail</button>
+      </div>
+      <div id="ae-result-cards"></div>
+    </div>
 
     <h2>Registro de encuestas</h2>
     <div class="filters">
@@ -711,42 +729,42 @@
       { name: 'Nuevo Cliente', email: '', phone: '', empresa: '', trabajos: 0 },
     ];
 
-    // ---- Crear encuesta: paso 1 (tipo + servicio + clientes) ----
+    // ---- Asignar encuesta: template + clientes ----
 
-    let ceClientes = []; // { name, email, phone, imported }
+    let aeClientes = []; // { name, email, phone, imported }
 
-    function renderClientesList() {
-      const wrap = document.getElementById('ce-clientes-list');
-      document.getElementById('ce-clientes-empty').style.display = ceClientes.length ? 'none' : 'block';
-      wrap.innerHTML = ceClientes.map((c, i) => `
+    function renderAeClientesList() {
+      const wrap = document.getElementById('ae-clientes-list');
+      document.getElementById('ae-clientes-empty').style.display = aeClientes.length ? 'none' : 'block';
+      wrap.innerHTML = aeClientes.map((c, i) => `
         <span class="chip-item">${c.name}${c.imported ? ' <span class="muted">(xls)</span>' : ''}
           <button type="button" data-remove-cliente="${i}" aria-label="Quitar cliente">✕</button>
         </span>`).join('');
       wrap.querySelectorAll('[data-remove-cliente]').forEach((btn) => {
         btn.addEventListener('click', () => {
-          ceClientes.splice(Number(btn.dataset.removeCliente), 1);
-          renderClientesList();
+          aeClientes.splice(Number(btn.dataset.removeCliente), 1);
+          renderAeClientesList();
         });
       });
     }
 
-    function addCliente(name, email = '', phone = '') {
+    function addAeCliente(name, email = '', phone = '') {
       name = (name || '').trim();
       if (!name) return;
-      if (ceClientes.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+      if (aeClientes.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
         showToast('Ese cliente ya está en la lista.');
         return;
       }
-      ceClientes.push({ name, email, phone, imported: false });
-      renderClientesList();
+      aeClientes.push({ name, email, phone, imported: false });
+      renderAeClientesList();
     }
 
-    function renderClienteSuggestions() {
-      const input = document.getElementById('ce-cliente-input');
-      const list = document.getElementById('ce-cliente-suggestions');
+    function renderAeClienteSuggestions() {
+      const input = document.getElementById('ae-cliente-input');
+      const list = document.getElementById('ae-cliente-suggestions');
       const q = input.value.trim().toLowerCase();
       if (!q) { list.hidden = true; list.innerHTML = ''; list._matches = []; return; }
-      const already = new Set(ceClientes.map((c) => c.name.toLowerCase()));
+      const already = new Set(aeClientes.map((c) => c.name.toLowerCase()));
       const matches = CLIENTES_DB.filter((c) => c.name.toLowerCase().includes(q) && !already.has(c.name.toLowerCase())).slice(0, 6);
       list._matches = matches;
       if (!matches.length) { list.hidden = true; list.innerHTML = ''; return; }
@@ -759,34 +777,34 @@
         item.addEventListener('mousedown', (e) => {
           e.preventDefault(); // evita el blur del input antes del click
           const c = matches[Number(item.dataset.suggestIndex)];
-          addCliente(c.name, c.email, c.phone);
+          addAeCliente(c.name, c.email, c.phone);
           input.value = '';
           list.hidden = true;
         });
       });
     }
 
-    document.getElementById('ce-add-cliente').addEventListener('click', () => {
-      const input = document.getElementById('ce-cliente-input');
-      addCliente(input.value.trim());
+    document.getElementById('ae-add-cliente').addEventListener('click', () => {
+      const input = document.getElementById('ae-cliente-input');
+      addAeCliente(input.value.trim());
       input.value = '';
-      document.getElementById('ce-cliente-suggestions').hidden = true;
+      document.getElementById('ae-cliente-suggestions').hidden = true;
     });
-    document.getElementById('ce-cliente-input').addEventListener('input', renderClienteSuggestions);
-    document.getElementById('ce-cliente-input').addEventListener('focus', renderClienteSuggestions);
-    document.getElementById('ce-cliente-input').addEventListener('blur', () => {
-      setTimeout(() => { document.getElementById('ce-cliente-suggestions').hidden = true; }, 120);
+    document.getElementById('ae-cliente-input').addEventListener('input', renderAeClienteSuggestions);
+    document.getElementById('ae-cliente-input').addEventListener('focus', renderAeClienteSuggestions);
+    document.getElementById('ae-cliente-input').addEventListener('blur', () => {
+      setTimeout(() => { document.getElementById('ae-cliente-suggestions').hidden = true; }, 120);
     });
-    document.getElementById('ce-cliente-input').addEventListener('keydown', (e) => {
+    document.getElementById('ae-cliente-input').addEventListener('keydown', (e) => {
       const input = e.target;
-      const list = document.getElementById('ce-cliente-suggestions');
+      const list = document.getElementById('ae-cliente-suggestions');
       if (e.key === 'Enter') {
         e.preventDefault();
         if (!list.hidden && list._matches && list._matches.length) {
           const c = list._matches[0];
-          addCliente(c.name, c.email, c.phone);
+          addAeCliente(c.name, c.email, c.phone);
         } else {
-          addCliente(input.value.trim());
+          addAeCliente(input.value.trim());
         }
         input.value = '';
         list.hidden = true;
@@ -795,18 +813,40 @@
       }
     });
 
-    document.getElementById('ce-import-xls').addEventListener('click', () => document.getElementById('ce-xls-file').click());
-    document.getElementById('ce-xls-file').addEventListener('change', (e) => {
+    document.getElementById('ae-import-xls').addEventListener('click', () => document.getElementById('ae-xls-file').click());
+    document.getElementById('ae-xls-file').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
       // Vista previa: no se parsea el archivo real. En la app final esto
       // se procesaría en el servidor y traería nombre + email/whatsapp.
       const demo = ['Cliente Importado A', 'Cliente Importado B', 'Cliente Importado C'];
-      demo.forEach((name, i) => ceClientes.push({ name, email: `cliente${i + 1}@importado.com`, phone: '', imported: true }));
-      renderClientesList();
+      demo.forEach((name, i) => aeClientes.push({ name, email: `cliente${i + 1}@importado.com`, phone: '', imported: true }));
+      renderAeClientesList();
       showToast(`${demo.length} clientes importados desde "${file.name}" (simulado en vista previa)`);
       e.target.value = '';
     });
+
+    // ---- Templates de encuesta ----
+
+    let templates = [];
+
+    function populateTemplateSelect() {
+      const sel = document.getElementById('ae-template');
+      const current = sel.value;
+      sel.innerHTML = templates.length
+        ? templates.map((t) => `<option value="${t.nombre}">${t.nombre}</option>`).join('')
+        : '<option value="">Todavía no hay templates creados</option>';
+      if (templates.some((t) => t.nombre === current)) sel.value = current;
+      renderAeTemplateInfo();
+    }
+
+    function renderAeTemplateInfo() {
+      const t = templates.find((x) => x.nombre === document.getElementById('ae-template').value);
+      document.getElementById('ae-template-info').textContent = t
+        ? `${t.tipoEncuesta === 'nps' ? 'NPS' : 'Resolución de caso'}${t.tipoServicio ? ' · ' + t.tipoServicio : ''} · ${t.preguntas.length} pregunta${t.preguntas.length > 1 ? 's' : ''}`
+        : '';
+    }
+    document.getElementById('ae-template').addEventListener('change', renderAeTemplateInfo);
 
     const NPS_QUESTIONS = [
       { q: 'En una escala de 0 a 10, ¿qué tan probable es que nos recomiendes a un amigo o colega?', type: 'escala 0–10' },
@@ -870,7 +910,8 @@
 
     document.getElementById('create-survey-step1').addEventListener('submit', (e) => {
       e.preventDefault();
-      if (!ceClientes.length) { showToast('Agregá al menos un cliente.'); return; }
+      const nombreTemplate = document.getElementById('ce-template-nombre').value.trim();
+      if (!nombreTemplate) { showToast('Ponele un nombre al template.'); return; }
       const tipoEncuesta = document.getElementById('ce-tipo-encuesta').value;
       const tipoServicio = document.getElementById('ce-tipo-servicio').value.trim();
       ceQuestions = (tipoEncuesta === 'nps' ? NPS_QUESTIONS : RESOLUCION_QUESTIONS).map((q) => ({ ...q }));
@@ -879,8 +920,8 @@
       step2.hidden = false;
       step2.innerHTML = `
         <div class="card" style="border-left:4px solid var(--accent)">
-          <span class="who">${tipoEncuesta === 'nps' ? 'NPS' : 'Resolución de caso'}</span>
-          <span class="muted">para ${ceClientes.length} cliente${ceClientes.length > 1 ? 's' : ''}${tipoServicio ? ' · ' + tipoServicio : ''}</span>
+          <span class="who">${nombreTemplate}</span>
+          <span class="muted">${tipoEncuesta === 'nps' ? 'NPS' : 'Resolución de caso'}${tipoServicio ? ' · ' + tipoServicio : ''}</span>
 
           <label class="field-label" style="margin-top:1rem">Preguntas</label>
           <div id="ce-questions-list"></div>
@@ -888,14 +929,9 @@
             <button type="button" class="ghost" id="ce-add-question">+ Agregar pregunta</button>
           </div>
 
-          <label class="field-label" style="margin-top:1rem">Observaciones</label>
-          <textarea id="ce-observaciones" placeholder="Notas internas sobre este envío..."></textarea>
-
           <div class="row" style="margin-top:1.2rem">
-            <a class="wa" href="#" id="ce-obtener-link">Obtener link para WhatsApp</a>
-            <button type="button" id="ce-enviar-mail">Enviar encuesta por mail</button>
+            <button class="primary" type="button" id="ce-guardar-template">Guardar template</button>
           </div>
-          <div id="ce-result-cards"></div>
         </div>`;
 
       renderQuestionsList();
@@ -903,24 +939,38 @@
         ceQuestions.push({ q: '', type: 'escala 0–10' });
         renderQuestionsList();
       });
-      document.getElementById('ce-obtener-link').addEventListener('click', (ev) => {
-        ev.preventDefault();
-        finalizeCreateEncuesta('whatsapp');
+      document.getElementById('ce-guardar-template').addEventListener('click', () => {
+        if (templates.some((t) => t.nombre.toLowerCase() === nombreTemplate.toLowerCase())) {
+          showToast('Ya existe un template con ese nombre.');
+          return;
+        }
+        templates.push({
+          nombre: nombreTemplate, tipoEncuesta, tipoServicio,
+          preguntas: ceQuestions.map((q) => ({ ...q })),
+        });
+        populateTemplateSelect();
+        document.getElementById('ae-template').value = nombreTemplate;
+        renderAeTemplateInfo();
+        document.getElementById('create-survey-step1').reset();
+        step2.hidden = true;
+        step2.innerHTML = '';
+        showToast(`Template "${nombreTemplate}" guardado — ya podés asignarlo.`);
       });
-      document.getElementById('ce-enviar-mail').addEventListener('click', () => finalizeCreateEncuesta('email'));
 
       step2.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
 
-    function finalizeCreateEncuesta(channelPref) {
-      const tipoServicio = document.getElementById('ce-tipo-servicio').value.trim();
-      const results = ceClientes.map((c) => {
+    function finalizeAsignarEncuesta(channelPref) {
+      const template = templates.find((t) => t.nombre === document.getElementById('ae-template').value);
+      if (!template) { showToast('Elegí un template.'); return; }
+      if (!aeClientes.length) { showToast('Agregá al menos un cliente.'); return; }
+      const results = aeClientes.map((c) => {
         const code = `ENC-${String(surveySeq++).padStart(4, '0')}`;
         const url = `https://maquina-encuestas.vercel.app/s/${Array.from({ length: 24 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
         const channel = channelPref === 'email' ? 'email' : (c.phone ? 'whatsapp' : (c.imported ? 'email' : 'whatsapp'));
         const yaEnviada = channelPref === 'email';
         surveys.unshift({
-          code, cliente: c.name, job_ref: '—', job_type: tipoServicio,
+          code, cliente: c.name, job_ref: '—', job_type: template.tipoServicio,
           channel, estado: yaEnviada ? 'sent' : 'ready',
           sent_at: yaEnviada ? new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '',
           responded_at: '', rating: null, score: null,
@@ -928,13 +978,13 @@
         return { code, name: c.name, url };
       });
 
-      document.getElementById('ce-result-cards').innerHTML = results.map((r) => `
+      document.getElementById('ae-result-cards').innerHTML = results.map((r) => `
         <div class="row">
           <span class="who">${r.code}</span> <span class="muted">${r.name}</span>
           <input readonly value="${r.url}" style="flex:1;min-width:200px" onclick="this.select()">
           <button type="button" data-copy-link="${r.url}">Copiar link</button>
         </div>`).join('');
-      document.getElementById('ce-result-cards').querySelectorAll('[data-copy-link]').forEach((btn) => {
+      document.getElementById('ae-result-cards').querySelectorAll('[data-copy-link]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           try { await navigator.clipboard.writeText(btn.dataset.copyLink); showToast('Link copiado.'); }
           catch { showToast('No se pudo copiar: seleccioná el link y copialo a mano.'); }
@@ -948,6 +998,12 @@
         ? `Encuesta enviada por mail a ${results.length} cliente(s) (vista previa)`
         : `Link${results.length > 1 ? 's' : ''} de WhatsApp listo(s) para ${results.length} cliente(s)`);
     }
+
+    document.getElementById('ae-obtener-link').addEventListener('click', (ev) => {
+      ev.preventDefault();
+      finalizeAsignarEncuesta('whatsapp');
+    });
+    document.getElementById('ae-enviar-mail').addEventListener('click', () => finalizeAsignarEncuesta('email'));
 
     // ---- Solapa Clientes: agregada a partir del registro de encuestas ----
 
@@ -1202,7 +1258,8 @@
       });
     }
 
-    renderClientesList();
+    renderAeClientesList();
+    populateTemplateSelect();
 
     ['fe-status', 'fe-type', 'fe-q'].forEach((id) => {
       document.getElementById(id).addEventListener('input', renderSurveysTable);

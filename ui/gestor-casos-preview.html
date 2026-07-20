@@ -130,6 +130,17 @@
     button.primary:hover { filter: brightness(1.07); }
     button.ghost { background: transparent; }
 
+    .obs-history { display: flex; flex-direction: column; gap: .5rem; max-height: 220px; overflow-y: auto; margin-top: .5rem; }
+    .obs-item { border: 1px solid var(--hairline); border-radius: 10px; padding: .5rem .65rem; background: var(--raised); }
+    .obs-item .obs-date { color: var(--muted); font-size: .74rem; font-variant-numeric: tabular-nums; }
+    .obs-item .obs-text { margin-top: .15rem; font-size: .9rem; white-space: pre-wrap; }
+    .empty { color: var(--muted); font-size: .85rem; padding: .3rem 0; }
+
+    .seguimiento-item { border: 1px solid var(--hairline); border-radius: 10px; padding: .55rem .7rem; margin-top: .5rem; background: var(--raised); }
+    .seguimiento-item .seg-head { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+    .seguimiento-item .seg-text { margin-top: .3rem; font-size: .88rem; }
+    .chip.mutedbg { background: var(--muted); }
+
     #toast {
       position: fixed; left: 50%; bottom: 1.4rem; transform: translate(-50%, .6rem);
       background: var(--ink); color: var(--page); padding: .55rem 1rem; border-radius: 10px;
@@ -196,13 +207,62 @@
 
     // Datos de ejemplo (vista previa, sin backend todavía).
     let casos = [
-      { code: 'CASE-001', cliente: 'Hugo Almada', job_ref: 'T-1010', job_type: 'pintura', contacto: 'halmada@mail.com', estado: 'abierto', respondio: '11/7, 03:11 p. m.', notas: '', sentiment: 'detractor' },
-      { code: 'CASE-002', cliente: 'Dario Sosa', job_ref: 'T-1006', job_type: 'pintura', contacto: 'dario.sosa@mail.com', estado: 'en_tratamiento', respondio: '1/7, 03:11 p. m.', notas: 'Hablé con él, coordinamos visita para el jueves.', sentiment: 'detractor' },
+      { code: 'CASE-001', cliente: 'Hugo Almada', job_ref: 'T-1010', job_type: 'pintura', contacto: 'halmada@mail.com', estado: 'abierto', respondio: '11/7, 03:11 p. m.', notas: '', sentiment: 'detractor',
+        trabajoDetalle: 'Repintado de living y dormitorio principal', trabajoFechaInicio: '2026-07-08', trabajoFechaFin: '2026-07-10',
+        trabajoHistorial: [
+          { fecha: '10/07/2026, 06:40 p. m.', texto: 'Terminada segunda mano, quedaron manchas de humedad visibles.' },
+          { fecha: '08/07/2026, 09:15 a. m.', texto: 'Se empezó con la preparación de superficie.' },
+        ] },
+      { code: 'CASE-002', cliente: 'Dario Sosa', job_ref: 'T-1006', job_type: 'pintura', contacto: 'dario.sosa@mail.com', estado: 'en_tratamiento', respondio: '1/7, 03:11 p. m.', notas: 'Hablé con él, coordinamos visita para el jueves.', sentiment: 'detractor',
+        trabajoDetalle: 'Retoque de fachada frontal', trabajoFechaInicio: '2026-06-28', trabajoFechaFin: '2026-06-30',
+        trabajoHistorial: [
+          { fecha: '30/06/2026, 05:00 p. m.', texto: 'Trabajo entregado, cliente conforme en el momento.' },
+        ] },
       { code: 'CASE-003', cliente: 'Marta Ledesma', job_ref: 'T-1011', job_type: 'electricidad', contacto: 'marta.ledesma@mail.com', estado: 'abierto', respondio: '9/7, 10:15 a. m.', notas: '', sentiment: 'neutro' },
       { code: 'CASE-004', cliente: 'Rocío Benítez', job_ref: 'T-1009', job_type: 'plomería', contacto: 'rbenitez@mail.com', estado: 'en_tratamiento', respondio: '6/7, 09:40 a. m.', notas: 'Se pidió repuesto, vuelve el técnico el lunes.', sentiment: 'neutro' },
       { code: 'CASE-005', cliente: 'Clínica San Justo', job_ref: 'T-1007', job_type: 'electricidad', contacto: 'admin@sanjusto.com', estado: 'resuelto', respondio: '3/7, 08:20 a. m.', notas: 'Se resolvió cambiando el disyuntor.', sentiment: 'detractor' },
       { code: 'CASE-006', cliente: 'Estudio Ferreyra', job_ref: 'T-1004', job_type: 'gasista', contacto: 'info@ferreyra.com.ar', estado: 'resuelto', respondio: '28/6, 04:50 p. m.', notas: 'Revisión completa, cliente conforme.', sentiment: 'promotor' },
     ];
+
+    // Historial de encuestas ya respondidas por cliente (ejemplo).
+    const ENCUESTAS_HISTORIAL = {
+      'Hugo Almada': [{ code: 'ENC-0003', fecha: '20/6/2026, 10:00 a. m.', resultado: 'insatisfecho' }],
+      'Dario Sosa': [
+        { code: 'ENC-0008', fecha: '5/7/2026, 11:00 a. m.', resultado: 'insatisfecho' },
+        { code: 'ENC-0002', fecha: '2/5/2026, 09:30 a. m.', resultado: 'excelente' },
+      ],
+      'Clínica San Justo': [{ code: 'ENC-0020', fecha: '17/7/2026, 05:07 p. m.', resultado: 'csat3' }],
+    };
+
+    const SEGUIMIENTO_CHIP = { 'Finalizado': 'good', 'Pendiente': 'warn', 'En Curso': 'accent' };
+
+    // ---- Puente con OPERADOR: al finalizar un trabajo, se genera un caso ----
+    const BRIDGE_KEY = 'mde_casos_bridge';
+    let casoSeq = 7;
+
+    function importarCasosDesdeOperador() {
+      let pendientes = [];
+      try { pendientes = JSON.parse(localStorage.getItem(BRIDGE_KEY) || '[]'); } catch { pendientes = []; }
+      if (!pendientes.length) return;
+      const yaExisten = new Set(casos.map((c) => c.job_ref));
+      let agregados = 0;
+      pendientes.forEach((p) => {
+        if (yaExisten.has(p.job_ref)) return;
+        casos.push({
+          code: `CASE-${String(casoSeq++).padStart(3, '0')}`,
+          cliente: p.cliente, job_ref: p.job_ref, job_type: p.job_type || '',
+          contacto: '', estado: 'abierto', respondio: '', notas: '', sentiment: 'neutro',
+          trabajoDetalle: p.trabajoDetalle || '', trabajoFechaInicio: p.trabajoFechaInicio || '', trabajoFechaFin: p.trabajoFechaFin || '',
+          trabajoHistorial: p.trabajoHistorial || [],
+        });
+        yaExisten.add(p.job_ref);
+        agregados++;
+      });
+      if (agregados) {
+        localStorage.removeItem(BRIDGE_KEY);
+        showToast(`${agregados} caso(s) nuevo(s) generado(s) desde trabajos finalizados en OPERADOR.`);
+      }
+    }
 
     function badge(estado) {
       return `<span class="badge"><span class="chip ${ESTADO_CHIP[estado]}"></span>${ESTADO_LABEL[estado]}</span>`;
@@ -271,9 +331,32 @@
 
     const CARD_CLASS = { abierto: 'case-open', en_tratamiento: 'case-treatment', resuelto: 'case-resolved' };
 
+    function resultadoPill(resultado) {
+      if (resultado.startsWith('csat')) {
+        const score = Number(resultado.replace('csat', ''));
+        const chip = score >= 4 ? 'good' : score === 3 ? 'warn' : 'crit';
+        const color = { good: 'var(--status-good)', warn: 'var(--status-warn)', crit: 'var(--status-crit)' }[chip];
+        return `<span class="rating-pill" style="border-color:${color};color:${color}"><span class="chip ${chip}"></span>CSAT ${score}/5</span>`;
+      }
+      const chip = { insatisfecho: 'crit', bueno: 'warn', excelente: 'good' }[resultado] || 'mutedc';
+      const color = { insatisfecho: 'var(--status-crit)', bueno: 'var(--status-warn)', excelente: 'var(--status-good)' }[resultado] || 'var(--muted)';
+      return `<span class="rating-pill" style="border-color:${color};color:${color}"><span class="chip ${chip}"></span>${resultado}</span>`;
+    }
+
+    let currentCasoCode = null;
+    let mostrarFormSeguimiento = false;
+
     function renderCasoDetalle(code) {
       const c = casos.find((x) => x.code === code);
       if (!c) return;
+      if (code !== currentCasoCode) mostrarFormSeguimiento = false;
+      currentCasoCode = code;
+      if (!c.seguimientos) c.seguimientos = [];
+
+      const historialTrabajo = c.trabajoHistorial || [];
+      const encuestasCliente = ENCUESTAS_HISTORIAL[c.cliente] || [];
+      const proximoNumero = c.seguimientos.length + 1;
+
       const wrap = document.getElementById('casos-table-wrap');
       wrap.innerHTML = `
         <button type="button" class="ghost" id="caso-volver">← Volver a Casos</button>
@@ -282,15 +365,69 @@
           <span class="muted">trabajo ${c.job_ref}${c.job_type ? ' · ' + c.job_type : ''} · respondió ${c.respondio || '—'} · ${c.contacto || 'sin datos'}</span>
           <div class="row">${sentimentBadge(c.sentiment)}</div>
 
+          <label class="field-label">Historial del trabajo</label>
+          ${c.trabajoDetalle ? `
+            <p class="muted" style="margin:0">${c.job_type || '—'} · ${c.trabajoDetalle} · Inicio: ${c.trabajoFechaInicio || '—'} · Fin: ${c.trabajoFechaFin || '—'}</p>
+            ${historialTrabajo.length ? `
+            <div class="obs-history">
+              ${historialTrabajo.map((o) => `
+                <div class="obs-item">
+                  <div class="obs-date">${o.fecha}</div>
+                  <div class="obs-text">${o.texto}</div>
+                </div>`).join('')}
+            </div>` : '<p class="empty">Sin observaciones registradas en el trabajo.</p>'}
+          ` : '<p class="empty">Sin historial de trabajo disponible.</p>'}
+
+          <label class="field-label">Encuestas respondidas del cliente</label>
+          ${encuestasCliente.length ? encuestasCliente.map((e) => `
+            <div class="row" style="margin-top:.3rem">
+              <span class="code">${e.code}</span>
+              <span class="muted">${e.fecha}</span>
+              ${resultadoPill(e.resultado)}
+            </div>`).join('') : '<p class="empty">Sin encuestas respondidas anteriores.</p>'}
+
           <label class="field-label" for="caso-notas">Notas del caso</label>
           <textarea id="caso-notas" placeholder="Notas del caso...">${c.notas || ''}</textarea>
 
-          ${c.estado !== 'resuelto' ? `
           <div class="row">
-            ${c.estado === 'abierto' ? '<button type="button" id="caso-tratamiento">Pasar a en tratamiento</button>' : ''}
-            <button class="primary" type="button" id="caso-resolver">Marcar resuelto</button>
-            <button class="ghost" type="button" id="caso-guardar-notas">Guardar notas</button>
-          </div>` : '<p class="muted" style="margin-top:1rem">Caso resuelto.</p>'}
+            ${c.estado !== 'resuelto' ? `
+              ${c.estado === 'abierto' ? '<button type="button" id="caso-tratamiento">Pasar a en tratamiento</button>' : ''}
+              <button class="primary" type="button" id="caso-resolver">Marcar resuelto</button>
+              <button class="ghost" type="button" id="caso-guardar-notas">Guardar notas</button>
+            ` : '<span class="muted">Caso resuelto.</span>'}
+            <button type="button" id="caso-enviar-encuesta" ${c.encuestaEnviada ? 'disabled' : ''}>
+              ${c.encuestaEnviada ? 'Encuesta enviada ✓' : 'Enviar encuesta'}
+            </button>
+          </div>
+
+          <label class="field-label">Seguimiento</label>
+          <button type="button" class="ghost" id="caso-toggle-seguimiento">
+            ${mostrarFormSeguimiento ? 'Cancelar' : 'Generar Caso de Seguimiento'}
+          </button>
+
+          ${mostrarFormSeguimiento ? `
+          <div class="row" style="margin-top:.7rem;align-items:flex-start">
+            <input id="seg-numero" type="text" value="${proximoNumero}" placeholder="N° de seguimiento" style="max-width:140px">
+            <select id="seg-estado">
+              <option>Pendiente</option>
+              <option>En Curso</option>
+              <option>Finalizado</option>
+            </select>
+          </div>
+          <textarea id="seg-observaciones" placeholder="Observaciones del seguimiento..." style="margin-top:.55rem"></textarea>
+          <div class="row">
+            <button class="primary" type="button" id="seg-guardar">Guardar seguimiento</button>
+          </div>` : ''}
+
+          ${c.seguimientos.length ? c.seguimientos.map((s) => `
+            <div class="seguimiento-item">
+              <div class="seg-head">
+                <span class="who">Seguimiento N° ${s.numero}</span>
+                <span class="badge"><span class="chip ${SEGUIMIENTO_CHIP[s.estado]}"></span>${s.estado}</span>
+                <span class="muted">${s.fecha}</span>
+              </div>
+              <div class="seg-text">${s.observaciones}</div>
+            </div>`).join('') : ''}
         </div>`;
 
       document.getElementById('caso-volver').addEventListener('click', () => renderCasosTable());
@@ -313,6 +450,31 @@
       document.getElementById('caso-guardar-notas')?.addEventListener('click', () => {
         c.notas = document.getElementById('caso-notas').value;
         showToast('Notas guardadas.');
+      });
+
+      document.getElementById('caso-enviar-encuesta')?.addEventListener('click', () => {
+        c.encuestaEnviada = true;
+        showToast(`Encuesta enviada a ${c.cliente} (vista previa).`);
+        renderCasoDetalle(code);
+      });
+
+      document.getElementById('caso-toggle-seguimiento').addEventListener('click', () => {
+        mostrarFormSeguimiento = !mostrarFormSeguimiento;
+        renderCasoDetalle(code);
+      });
+
+      document.getElementById('seg-guardar')?.addEventListener('click', () => {
+        const observaciones = document.getElementById('seg-observaciones').value.trim();
+        if (!observaciones) { showToast('Completá las observaciones del seguimiento.'); return; }
+        c.seguimientos.push({
+          numero: document.getElementById('seg-numero').value.trim() || String(proximoNumero),
+          estado: document.getElementById('seg-estado').value,
+          observaciones,
+          fecha: new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        });
+        mostrarFormSeguimiento = false;
+        showToast('Caso de seguimiento generado.');
+        renderCasoDetalle(code);
       });
     }
 
@@ -349,6 +511,7 @@
       showToast('CSV descargado');
     });
 
+    importarCasosDesdeOperador();
     populateClienteFilter();
     renderCasosTable();
   </script>

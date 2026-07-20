@@ -154,6 +154,14 @@
     .photo-thumb button { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; padding: 0; line-height: 1; font-size: .8rem; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; border: none; }
     .photo-empty { color: var(--muted); font-size: .82rem; margin-top: .5rem; }
 
+    .row { display: flex; gap: .55rem; align-items: flex-start; margin-top: .6rem; }
+    .row textarea { min-height: 2.6rem; }
+    .obs-history { display: flex; flex-direction: column; gap: .5rem; max-height: 220px; overflow-y: auto; }
+    .obs-item { border: 1px solid var(--hairline); border-radius: 10px; padding: .5rem .65rem; background: var(--raised); }
+    .obs-item .obs-date { color: var(--muted); font-size: .74rem; font-variant-numeric: tabular-nums; }
+    .obs-item .obs-text { margin-top: .15rem; font-size: .9rem; white-space: pre-wrap; }
+    .obs-empty { color: var(--muted); font-size: .82rem; }
+
     /* ---- modal ---- */
     .modal-backdrop {
       position: fixed; inset: 0; background: rgba(20, 19, 16, .45);
@@ -256,8 +264,13 @@
         <option>Finalizado</option>
       </select>
 
-      <label class="field" for="modal-obs">Observaciones</label>
-      <textarea id="modal-obs" placeholder="Notas del trabajo..."></textarea>
+      <label class="field">Observaciones</label>
+      <div class="obs-history" id="obs-history"></div>
+      <p class="obs-empty" id="obs-empty">Sin observaciones todavía.</p>
+      <div class="row">
+        <textarea id="modal-obs-input" placeholder="Escribí una observación..." style="flex:1"></textarea>
+        <button type="button" id="modal-obs-add">Agregar observación</button>
+      </div>
 
       <label class="field">Fotos</label>
       <div class="photo-input-row">
@@ -289,12 +302,12 @@
 
     // Datos de ejemplo (vista previa, sin backend todavía).
     let jobs = [
-      { id: 'T-104', cliente: 'Dario Sosa', trabajo: 'Pintura', detalle: 'Repintado de fachada frontal', fechaInicio: '2026-07-10', fechaFin: '', estado: 'En curso', obs: '', fotos: [] },
-      { id: 'T-106', cliente: 'Dario Sosa', trabajo: 'Pintura', detalle: 'Retoque de humedad en living', fechaInicio: '2026-07-16', fechaFin: '', estado: 'Sin Iniciar', obs: '', fotos: [] },
-      { id: 'T-098', cliente: 'Marta Gil', trabajo: 'Plomería', detalle: 'Cambio de cañería en cocina', fechaInicio: '2026-07-05', fechaFin: '', estado: 'Pendiente', obs: '', fotos: [] },
-      { id: 'T-101', cliente: 'Carlos Ruiz', trabajo: 'Electricidad', detalle: 'Instalación de tablero nuevo', fechaInicio: '2026-06-20', fechaFin: '2026-06-25', estado: 'Finalizado', obs: '', fotos: [] },
-      { id: 'T-110', cliente: 'Laura Paz', trabajo: 'Pintura', detalle: 'Pintura completa depto 2 ambientes', fechaInicio: '2026-07-08', fechaFin: '', estado: 'En curso', obs: '', fotos: [] },
-      { id: 'T-112', cliente: 'Jorge Diaz', trabajo: 'Gasista', detalle: 'Revisión de instalación de gas', fechaInicio: '2026-07-17', fechaFin: '', estado: 'Sin Iniciar', obs: '', fotos: [] },
+      { id: 'T-104', cliente: 'Dario Sosa', trabajo: 'Pintura', detalle: 'Repintado de fachada frontal', fechaInicio: '2026-07-10', fechaFin: '', estado: 'En curso', observaciones: [], fotos: [] },
+      { id: 'T-106', cliente: 'Dario Sosa', trabajo: 'Pintura', detalle: 'Retoque de humedad en living', fechaInicio: '2026-07-16', fechaFin: '', estado: 'Sin Iniciar', observaciones: [], fotos: [] },
+      { id: 'T-098', cliente: 'Marta Gil', trabajo: 'Plomería', detalle: 'Cambio de cañería en cocina', fechaInicio: '2026-07-05', fechaFin: '', estado: 'Pendiente', observaciones: [], fotos: [] },
+      { id: 'T-101', cliente: 'Carlos Ruiz', trabajo: 'Electricidad', detalle: 'Instalación de tablero nuevo', fechaInicio: '2026-06-20', fechaFin: '2026-06-25', estado: 'Finalizado', observaciones: [], fotos: [] },
+      { id: 'T-110', cliente: 'Laura Paz', trabajo: 'Pintura', detalle: 'Pintura completa depto 2 ambientes', fechaInicio: '2026-07-08', fechaFin: '', estado: 'En curso', observaciones: [], fotos: [] },
+      { id: 'T-112', cliente: 'Jorge Diaz', trabajo: 'Gasista', detalle: 'Revisión de instalación de gas', fechaInicio: '2026-07-17', fechaFin: '', estado: 'Sin Iniciar', observaciones: [], fotos: [] },
     ];
 
     let openJobId = null;
@@ -377,9 +390,22 @@
       document.getElementById('modal-title').textContent = `Trabajo ${job.id} — ${job.cliente}`;
       document.getElementById('modal-sub').textContent = `${job.trabajo} · ${job.detalle} · Inicio: ${job.fechaInicio || '—'} · Fin: ${job.fechaFin || '—'}`;
       document.getElementById('modal-estado').value = job.estado;
-      document.getElementById('modal-obs').value = job.obs;
+      document.getElementById('modal-obs-input').value = '';
+      renderObsHistory();
       renderPhotos();
       document.getElementById('modal-backdrop').classList.add('show');
+    }
+
+    function renderObsHistory() {
+      const job = jobs.find(j => j.id === openJobId);
+      const wrap = document.getElementById('obs-history');
+      const empty = document.getElementById('obs-empty');
+      empty.style.display = job.observaciones.length ? 'none' : 'block';
+      wrap.innerHTML = job.observaciones.map((o) => `
+        <div class="obs-item">
+          <div class="obs-date">${o.fecha}</div>
+          <div class="obs-text">${o.texto}</div>
+        </div>`).join('');
     }
 
     function closeModal() {
@@ -417,10 +443,42 @@
     document.getElementById('input-camera').addEventListener('change', (e) => { addPhotoFiles(e.target.files); e.target.value = ''; });
     document.getElementById('input-gallery').addEventListener('change', (e) => { addPhotoFiles(e.target.files); e.target.value = ''; });
 
+    document.getElementById('modal-obs-add').addEventListener('click', () => {
+      const job = jobs.find(j => j.id === openJobId);
+      const input = document.getElementById('modal-obs-input');
+      const texto = input.value.trim();
+      if (!texto) return;
+      const fecha = new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      job.observaciones.unshift({ texto, fecha });
+      input.value = '';
+      renderObsHistory();
+    });
+
+    const CASOS_BRIDGE_KEY = 'mde_casos_bridge';
+
+    function enviarCasoAGestionDeCasos(job) {
+      let pendientes = [];
+      try { pendientes = JSON.parse(localStorage.getItem(CASOS_BRIDGE_KEY) || '[]'); } catch { pendientes = []; }
+      pendientes.push({
+        cliente: job.cliente,
+        job_ref: job.id,
+        job_type: job.trabajo,
+        trabajoDetalle: job.detalle,
+        trabajoFechaInicio: job.fechaInicio,
+        trabajoFechaFin: job.fechaFin,
+        trabajoHistorial: job.observaciones.slice(),
+      });
+      localStorage.setItem(CASOS_BRIDGE_KEY, JSON.stringify(pendientes));
+    }
+
     document.getElementById('modal-save').addEventListener('click', () => {
       const job = jobs.find(j => j.id === openJobId);
+      const estadoAnterior = job.estado;
       job.estado = document.getElementById('modal-estado').value;
-      job.obs = document.getElementById('modal-obs').value;
+      if (job.estado === 'Finalizado' && estadoAnterior !== 'Finalizado') {
+        if (!job.fechaFin) job.fechaFin = new Date().toISOString().slice(0, 10);
+        enviarCasoAGestionDeCasos(job);
+      }
       renderTable();
       renderTiles();
       closeModal();
@@ -469,10 +527,18 @@
       return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     }
 
+    function obsToText(job) {
+      return job.observaciones.map(o => `[${o.fecha}] ${o.texto}`).join(' | ');
+    }
+
+    function exportValue(j, key) {
+      return key === 'obs' ? obsToText(j) : j[key];
+    }
+
     function exportCsv() {
       const rows = filteredJobs();
       const lines = [EXPORT_COLUMNS.map(c => csvEscape(c.label)).join(',')];
-      rows.forEach(j => lines.push(EXPORT_COLUMNS.map(c => csvEscape(j[c.key])).join(',')));
+      rows.forEach(j => lines.push(EXPORT_COLUMNS.map(c => csvEscape(exportValue(j, c.key))).join(',')));
       const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
       downloadBlob(blob, 'trabajos.csv');
       showToast('CSV descargado');
@@ -482,7 +548,7 @@
       const rows = filteredJobs();
       const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const head = '<tr>' + EXPORT_COLUMNS.map(c => `<th>${esc(c.label)}</th>`).join('') + '</tr>';
-      const body = rows.map(j => '<tr>' + EXPORT_COLUMNS.map(c => `<td>${esc(j[c.key])}</td>`).join('') + '</tr>').join('');
+      const body = rows.map(j => '<tr>' + EXPORT_COLUMNS.map(c => `<td>${esc(exportValue(j, c.key))}</td>`).join('') + '</tr>').join('');
       const html = `<html><head><meta charset="utf-8"></head><body><table border="1">${head}${body}</table></body></html>`;
       const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
       downloadBlob(blob, 'trabajos.xls');
