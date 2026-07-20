@@ -280,6 +280,10 @@ const STATIC = {
   '/app': ['index.html', 'text/html; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
+  '/encuestador.html': ['encuestador.html', 'text/html; charset=utf-8'],
+  '/operador.html': ['operador.html', 'text/html; charset=utf-8'],
+  '/administrador-preview.html': ['administrador-preview.html', 'text/html; charset=utf-8'],
+  '/gestor-casos-preview.html': ['gestor-casos-preview.html', 'text/html; charset=utf-8'],
 };
 
 // =====================================================================
@@ -297,7 +301,7 @@ export function createApp(store) {
   const ADMIN_PASS = process.env.ADMIN_PASS || '';
   const OPERATOR_USER = process.env.OPERATOR_USER || 'operador';
   const OPERATOR_PASS = process.env.OPERATOR_PASS || '';
-  const PUBLIC_ROUTES = /^\/($|s\/|fonts\/|healthz$|app\.js$|style\.css$|api\/login$)/;
+  const PUBLIC_ROUTES = /^\/($|s\/|fonts\/|healthz$|app\.js$|style\.css$|api\/login$|encuestador\.html$|operador\.html$|administrador-preview\.html$|gestor-casos-preview\.html$)/;
   // Vistas globales de empresa: solo gerente (se aplica en el server).
   const MANAGER_ROUTES = new Set(['/api/crm', '/api/selftest', '/api/surveys']);
 
